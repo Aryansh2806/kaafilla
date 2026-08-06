@@ -1,0 +1,83 @@
+import { supabase, hasBackend } from './client';
+import { TRIPS, PLANS, OPERATORS, REVIEWS, ITINERARIES, EXPLORE, PEOPLE } from '../data/seed';
+import type { Trip, Plan, Review, ExploreRegion, Operator, Person } from '../types';
+
+// People (travellers). Seed-backed for now — real profiles are RLS-gated to
+// verified users, wired when auth sessions exist.
+export async function getPeople(): Promise<Person[]> {
+  return PEOPLE;
+}
+export async function getPerson(id: string): Promise<Person | null> {
+  return PEOPLE.find((p) => p.id === id) ?? null;
+}
+
+// PostgREST returns snake_case columns; the app uses camelCase. Convert on read.
+const toCamelKey = (k: string) => k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+function camel<T>(row: Record<string, unknown>): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) out[toCamelKey(k)] = v;
+  return out as T;
+}
+const camelAll = <T>(rows: Record<string, unknown>[]): T[] => rows.map((r) => camel<T>(r));
+
+// Read-side catalog API. Uses Supabase when configured, else the seed. Screens
+// and hooks never branch on this — they just await these functions.
+
+export async function getTrips(): Promise<Trip[]> {
+  if (!hasBackend) return TRIPS;
+  const { data, error } = await supabase!.from('trips').select('*');
+  if (error) throw error;
+  return camelAll<Trip>(data ?? []);
+}
+
+export async function getTrip(id: string): Promise<Trip | null> {
+  if (!hasBackend) return TRIPS.find((t) => t.id === id) ?? null;
+  const { data, error } = await supabase!.from('trips').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data ? camel<Trip>(data) : null;
+}
+
+export async function getPlans(): Promise<Plan[]> {
+  if (!hasBackend) return PLANS;
+  const { data, error } = await supabase!.from('plans').select('*');
+  if (error) throw error;
+  return camelAll<Plan>(data ?? []);
+}
+
+export async function getPlan(id: string): Promise<Plan | null> {
+  if (!hasBackend) return PLANS.find((p) => p.id === id) ?? null;
+  const { data, error } = await supabase!.from('plans').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data ? camel<Plan>(data) : null;
+}
+
+export async function getOperator(id: string): Promise<Operator | null> {
+  if (!hasBackend) return OPERATORS.find((o) => o.id === id) ?? null;
+  const { data, error } = await supabase!.from('operators').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data ? camel<Operator>(data) : null;
+}
+
+export async function getReviews(operatorId: string): Promise<Review[]> {
+  if (!hasBackend) return REVIEWS.filter((r) => r.operatorId === operatorId);
+  const { data, error } = await supabase!.from('reviews').select('*').eq('operator_id', operatorId);
+  if (error) throw error;
+  // DB column is when_label (when is reserved) → map to the type's `when`.
+  return camelAll<Review & { whenLabel: string }>(data ?? []).map(({ whenLabel, ...r }) => ({ ...r, when: whenLabel }));
+}
+
+export async function getItinerary(tripId: string): Promise<string[]> {
+  if (!hasBackend) return ITINERARIES[tripId] ?? [];
+  const { data, error } = await supabase!
+    .from('itineraries')
+    .select('line')
+    .eq('trip_id', tripId)
+    .order('idx');
+  if (error) throw error;
+  return (data ?? []).map((r: { line: string }) => r.line);
+}
+
+export async function getExploreRegion(key: string): Promise<ExploreRegion | null> {
+  // Explore content lives in seed for now; wire explore_regions/places when needed.
+  return EXPLORE.find((r) => r.key === key) ?? null;
+}

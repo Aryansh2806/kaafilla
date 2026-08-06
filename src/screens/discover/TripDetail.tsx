@@ -1,0 +1,150 @@
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import Svg, { Defs, LinearGradient as SvgLinear, Stop, Rect } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../theme/ThemeProvider';
+import { useTrip, useOperator, useItinerary } from '../../api/hooks';
+import { useAuthStore } from '../../store/authStore';
+import { useTripStore } from '../../store/tripStore';
+import { Header } from '../../components/molecules/Header';
+import { Button } from '../../components/atoms/Button';
+import { LeadBadge } from '../../components/atoms/Badges';
+import { RatioBar } from '../../components/atoms/Progress';
+import { Avatar } from '../../components/atoms/Avatar';
+import { gradients } from '../../theme/tokens';
+
+function Section({ title, children }: any) {
+  const t = useTheme();
+  return (
+    <View style={{ marginTop: t.spacing[6] }}>
+      <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: t.spacing[3] }}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+export function TripDetail({ navigation, route }: any) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const id = route.params?.id ?? 'spiti';
+  const { data: trip } = useTrip(id);
+  const { data: op } = useOperator(trip?.operatorId ?? '');
+  const { data: itinerary } = useItinerary(id);
+  const verified = useAuthStore((s) => s.isVerified);
+  const override = useTripStore((s) => s.overrides[id]);
+
+  if (!trip) return <View style={{ flex: 1, backgroundColor: t.colors.bg }} />;
+
+  const price = override?.price ?? trip.price;
+  const operatorName = override?.name ?? op?.name;
+  const join = () => navigation.navigate(verified ? 'Joined' : 'VerifyGate', { id, gateFrom: 'waitlist' });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+            <Defs>
+              <SvgLinear id="td" x1="0" y1="0" x2="1" y2="1">
+                <Stop offset="0" stopColor={gradients.sectionGlow[0]} />
+                <Stop offset="1" stopColor={gradients.sectionGlow[2]} />
+              </SvgLinear>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#td)" />
+          </Svg>
+          <View style={{ paddingTop: insets.top, paddingHorizontal: 20 }}>
+            <Header onBack={() => navigation.goBack()} />
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: 20 }}>
+          {override && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.colors.accentD4, borderRadius: t.radius.md, paddingVertical: 8, paddingHorizontal: 12, marginTop: t.spacing[4] }}>
+              <Text style={{ color: t.colors.accentL2, fontSize: t.typography.size.body2 }}>✓ Switched to {override.name} from the comparison</Text>
+            </View>
+          )}
+          <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: t.spacing[4] }}>
+            {operatorName} · ★ {trip.rating} · since {op?.since}
+          </Text>
+          <Text style={{ color: t.colors.text, fontSize: t.typography.size['3xl'], fontWeight: '500', marginTop: 4 }}>{trip.name}</Text>
+          <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm, marginTop: 6 }}>
+            {trip.month} · {trip.days} days · {trip.stay} · group of {trip.groupSize}
+          </Text>
+          <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm }}>Departs from {trip.cities}</Text>
+
+          {/* Trip lead */}
+          <View style={[styles.leadCard, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg }]}>
+            <Avatar name={trip.leadName} size={44} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{trip.leadName}</Text>
+              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>
+                {trip.lead === 'women' ? 'Woman' : 'Man'} · trip lead · {trip.leadYears} years on this route
+              </Text>
+            </View>
+            <LeadBadge lead={trip.lead} />
+          </View>
+
+          {/* Compare row */}
+          <Section title="Operators">
+            <Text onPress={() => navigation.navigate('PriceComparison', { id })} style={{ color: t.colors.accentL3, fontSize: t.typography.size.md }}>
+              {trip.operators} operators run this route — compare prices →
+            </Text>
+          </Section>
+
+          {/* Waitlist */}
+          <Section title="Who’s on the waitlist">
+            <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{trip.waitlist} travellers</Text>
+            <View style={{ marginTop: 12 }}>
+              <RatioBar women={trip.womenPct} masked={!verified} />
+            </View>
+            {!verified && (
+              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2, marginTop: 8, lineHeight: t.typography.size.body2 * t.typography.lineHeight.relaxed }}>
+                The ratio only means something if everyone in it is verified. Yours unlocks when you are.
+              </Text>
+            )}
+          </Section>
+
+          {/* Queue */}
+          <Section title="The queue & priority">
+            <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.md }}>
+              {trip.groupSize} seats · {trip.waitlist} in the queue · final call 2 days before
+            </Text>
+          </Section>
+
+          {/* Explore */}
+          <Section title="What’s around you there">
+            <Text onPress={() => navigation.navigate('LocalDiscover', { region: trip.region })} style={{ color: t.colors.accentL3, fontSize: t.typography.size.md }}>
+              Famous spots, food, hidden gems, shops near your stay →
+            </Text>
+          </Section>
+
+          {/* Itinerary */}
+          <Section title="Itinerary">
+            {(itinerary ?? []).map((line, i) => (
+              <View key={i} style={{ flexDirection: 'row', marginBottom: 10 }}>
+                <Text style={{ color: t.colors.accentL5, fontSize: t.typography.size.body2, width: 28, fontVariant: ['tabular-nums'] }}>{String(i + 1).padStart(2, '0')}</Text>
+                <Text style={{ color: t.colors.text, fontSize: t.typography.size.md, flex: 1 }}>{line}</Text>
+              </View>
+            ))}
+          </Section>
+        </View>
+      </ScrollView>
+
+      {/* Sticky CTA */}
+      <View style={[styles.cta, { backgroundColor: t.colors.bg, borderTopColor: t.colors.n800, paddingBottom: insets.bottom + 12 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: t.colors.text, fontSize: t.typography.size.xl, fontWeight: '600' }}>₹{price.toLocaleString('en-IN')}</Text>
+          <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>per person</Text>
+        </View>
+        <View style={{ flex: 1.4 }}>
+          <Button label="Join the waitlist" onPress={join} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  hero: { height: 200 },
+  leadCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderWidth: 1, marginTop: 20 },
+  cta: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
+});

@@ -1,0 +1,32 @@
+project_id = "kaafilla"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# Phone OTP is the primary sign-in. Configure an SMS provider (Twilio/MSG91) for
+# real delivery; local dev uses the fixed test OTP printed by `supabase start`.
+enable_signup = true
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = false
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
