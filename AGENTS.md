@@ -30,31 +30,49 @@ about layout, copy, or a state, open the prototype and match it.
 
 ## Getting started (new developer)
 
+The app code is cross-platform. Only the native build tooling differs by OS:
+**iOS needs macOS/Xcode; on Windows/Linux use Android.**
+
 ```bash
 # 1. Install JS deps
 cd kaafilla && npm install
 
-# 2. Bring up the local backend (Postgres/Auth/Realtime/Storage via Docker).
-#    Docker engine: Docker Desktop OR colima (headless, no GUI/licence):
-brew install colima supabase/tap/supabase   # if not already installed
-colima start                                 # starts the Docker daemon
-supabase start                               # pulls images (first run is slow), applies migrations + seed
+# 2. Bring up the local backend (Postgres/Auth/Realtime/Storage via Docker) + Supabase CLI.
+#    Docker engine:  macOS → Docker Desktop or colima  |  Windows → Docker Desktop (WSL2 backend)
+#    Supabase CLI:   macOS → brew install supabase/tap/supabase
+#                    Windows → scoop install supabase   (or:  winget install Supabase.CLI)
+colima start          # macOS+colima only; Docker Desktop users just launch the app
+supabase start        # pulls images (first run is slow), applies migrations + seed
 
 # 3. Point the app at it — copy .env.example → .env and paste the ANON_KEY that
-#    `supabase start` printed (URL stays http://127.0.0.1:54321 for the simulator).
-cp .env.example .env
+#    `supabase start` printed. URL stays http://127.0.0.1:54321.
+cp .env.example .env   # Windows: copy .env.example .env
 
-# 4. Run the app (first native build compiles pods — several minutes):
-npx expo run:ios
+# 4. Run the app (first native build takes several minutes):
+npx expo run:ios       # macOS only (needs Xcode)
+npx expo run:android   # Windows/Linux/macOS — needs Android Studio + an emulator or device
 ```
 
 If you skip steps 2–3 the app still runs fully — it falls back to the local seed
 (`src/data/seed.ts`), the same data that seeds Postgres. Add the `.env` to go live.
 
+### Platform notes
+- **Windows / Linux**: build for **Android**. Install Android Studio (gives the SDK + an emulator),
+  then `npx expo run:android`. No iOS builds off a Mac. Alternatively use **EAS Build** (cloud):
+  `npx eas build -p android --profile development`, then install the APK on an emulator/device — no
+  local Android toolchain needed (free Expo account required).
+- **Android emulator ↔ localhost**: the emulator reaches the host Supabase at **`http://10.0.2.2:54321`**,
+  not `127.0.0.1`. Set `EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:54321` in `.env` on Android.
+  (iOS simulator shares the host loopback, so it uses `127.0.0.1`.) A physical device uses the
+  machine's LAN IP, e.g. `http://192.168.x.x:54321`.
+- **Expo Go** (`npx expo start`, scan the QR): the quickest way to try the JS, but this project uses
+  native modules (reanimated 4, camera, svg, flash-list) that may exceed Expo Go — if it errors,
+  use a dev build (`run:android` / EAS) instead.
+
 **Reset the DB after editing `supabase/migrations` or `seed.sql`:** `supabase db reset`.
 **Supabase Studio** (browse/edit data): http://127.0.0.1:54323.
-**Gotcha:** if `supabase start` fails with `docker-credential-desktop not found`, remove the
-stale `"credsStore": "desktop"` line from `~/.docker/config.json` (leftover from Docker Desktop).
+**Gotcha (macOS):** if `supabase start` fails with `docker-credential-desktop not found`, remove the
+stale `"credsStore": "desktop"` line from `~/.docker/config.json`.
 
 ## Run
 
