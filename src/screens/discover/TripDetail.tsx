@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient as SvgLinear, Stop, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useTrip, useOperator, useItinerary } from '../../api/hooks';
+import { useTrip, useTrips, useOperator, useItinerary } from '../../api/hooks';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
 import { Header } from '../../components/molecules/Header';
@@ -11,8 +12,9 @@ import { LeadBadge } from '../../components/atoms/Badges';
 import { RatioBar } from '../../components/atoms/Progress';
 import { Avatar } from '../../components/atoms/Avatar';
 import { PhotoCarousel } from '../../components/molecules/PhotoCarousel';
-import { heroImages } from '../../data/tripImages';
+import { heroImage, heroImages } from '../../data/tripImages';
 import { gradients } from '../../theme/tokens';
+import type { Trip } from '../../types';
 
 function Section({ title, children }: any) {
   const t = useTheme();
@@ -21,6 +23,56 @@ function Section({ title, children }: any) {
       <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: t.spacing[3] }}>{title}</Text>
       {children}
     </View>
+  );
+}
+
+const fmtK = (n: number) => `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+
+// Compact horizontal card for the "similar trips" rail.
+function SimilarCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
+  const t = useTheme();
+  const uri = heroImage(trip.id, trip.region);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${trip.name}, ${fmtK(trip.price)}`}
+      style={({ pressed }) => [
+        styles.simCard,
+        { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg, transform: [{ scale: pressed ? 0.98 : 1 }] },
+      ]}
+    >
+      <View style={{ height: 96, backgroundColor: t.colors.sectionGlow, overflow: 'hidden' }}>
+        {uri ? <Image source={uri} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} cachePolicy="memory-disk" /> : null}
+      </View>
+      <View style={{ padding: 10 }}>
+        <Text numberOfLines={1} style={{ color: t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{trip.name}</Text>
+        <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size.lg, fontWeight: '600', marginTop: 2 }}>{fmtK(trip.price)}</Text>
+        <Text numberOfLines={1} style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 4 }}>
+          {trip.days} days · {trip.place} · ★ {trip.rating}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// Trips near this one: same region first, then same difficulty elsewhere. Excludes self.
+function SimilarTrips({ trip, onOpen }: { trip: Trip; onOpen: (id: string) => void }) {
+  const t = useTheme();
+  const { data } = useTrips();
+  const others = (data ?? []).filter((x) => x.id !== trip.id);
+  const sameRegion = others.filter((x) => x.region === trip.region);
+  const rest = others.filter((x) => x.region !== trip.region && x.difficulty === trip.difficulty);
+  const similar = [...sameRegion, ...rest].slice(0, 8);
+  if (similar.length === 0) return null;
+  return (
+    <Section title="Similar trips">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }} style={{ marginHorizontal: -20, paddingHorizontal: 20 }}>
+        {similar.map((x) => (
+          <SimilarCard key={x.id} trip={x} onPress={() => onOpen(x.id)} />
+        ))}
+      </ScrollView>
+    </Section>
   );
 }
 
@@ -138,6 +190,9 @@ export function TripDetail({ navigation, route }: any) {
               </View>
             ))}
           </Section>
+
+          {/* Similar trips */}
+          <SimilarTrips trip={trip} onOpen={(nextId) => navigation.push('TripDetail', { id: nextId })} />
         </View>
       </ScrollView>
 
@@ -157,6 +212,7 @@ export function TripDetail({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   hero: { height: 200 },
+  simCard: { width: 190, borderWidth: 1, overflow: 'hidden' },
   leadCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderWidth: 1, marginTop: 20 },
   cta: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1 },
 });

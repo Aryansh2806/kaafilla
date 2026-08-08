@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
-import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { useCallback, useMemo } from 'react';
+import { View, Text, Pressable, RefreshControl } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTrips, usePlans } from '../../api/hooks';
 import { useAuthStore } from '../../store/authStore';
 import { FeedCard } from '../../components/molecules/FeedCard';
+import { FeedCardSkeleton } from '../../components/atoms/Skeleton';
 import { VerifiedBadge, Tag } from '../../components/atoms/Badges';
 import { Chip } from '../../components/atoms/Chip';
 import { EmptyState } from '../../components/molecules/Card';
@@ -39,6 +40,11 @@ export function DiscoverFeed({ navigation }: any) {
   );
 
   const loading = trips.isLoading || plans.isLoading;
+  const refreshing = trips.isRefetching || plans.isRefetching;
+  const onRefresh = useCallback(() => {
+    trips.refetch();
+    plans.refetch();
+  }, [trips, plans]);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingTop: insets.top }}>
@@ -46,6 +52,15 @@ export function DiscoverFeed({ navigation }: any) {
         data={rows}
         keyExtractor={(r) => `${r.type}-${r.data.id}`}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={t.colors.accent}
+            colors={[t.colors.accent]}
+            progressBackgroundColor={t.colors.surface}
+          />
+        }
         ListHeaderComponent={
           <View style={{ paddingBottom: 8 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
@@ -88,7 +103,11 @@ export function DiscoverFeed({ navigation }: any) {
         )}
         ListEmptyComponent={
           loading ? (
-            <ActivityIndicator color={t.colors.accent} style={{ marginTop: 40 }} />
+            <View style={{ marginTop: 14, gap: 14 }}>
+              {[0, 1, 2].map((i) => (
+                <FeedCardSkeleton key={i} />
+              ))}
+            </View>
           ) : (
             <EmptyState
               title="Nothing matches all that"
