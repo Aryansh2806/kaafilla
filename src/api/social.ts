@@ -172,8 +172,6 @@ export async function getMessages(chatId: string): Promise<Msg[]> {
 export async function sendMessage(chatId: string, body: string): Promise<void> {
   if (!supabase) throw new Error('Backend not configured');
   const me = await uid();
-  console.warn('[chat] sendMessage chat=', chatId, 'me=', me);
   const { error } = await supabase.from('messages').insert({ chat_id: chatId, sender_id: me, body });
-  if (error) { console.warn('[chat] sendMessage FAILED', JSON.stringify(error)); throw error; }
-  console.warn('[chat] sendMessage OK');
+  if (error) throw error;
 }
