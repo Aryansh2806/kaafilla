@@ -62,6 +62,7 @@ export interface Person {
   handle: string; // shown masked until connected
   bio: string;
   lead: Lead;
+  photo?: string; // first profile photo (public URL), when available
 }
 
 export interface Review {

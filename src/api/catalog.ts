@@ -18,18 +18,33 @@ function rowToPerson(r: Record<string, unknown>): Person {
   };
 }
 
+// First photo per profile id (lowest slot), for avatars on the travellers board.
+async function photosFor(ids: string[]): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  if (!supabase || ids.length === 0) return map;
+  const { data } = await supabase.from('photos').select('profile_id,url,slot').in('profile_id', ids).order('slot');
+  for (const r of (data ?? []) as { profile_id: string; url: string }[]) {
+    if (!map[r.profile_id]) map[r.profile_id] = r.url;
+  }
+  return map;
+}
+
 export async function getPeople(): Promise<Person[]> {
   if (!hasBackend) return PEOPLE;
   const { data, error } = await supabase!.from('profiles').select('*');
   if (error) throw error;
   // Drop half-built rows (no first name yet) so the board only shows real people.
-  return (data ?? []).filter((r) => r.first_name).map((r) => rowToPerson(r));
+  const rows = (data ?? []).filter((r) => r.first_name);
+  const photos = await photosFor(rows.map((r) => String(r.id)));
+  return rows.map((r) => ({ ...rowToPerson(r), photo: photos[String(r.id)] }));
 }
 export async function getPerson(id: string): Promise<Person | null> {
   if (!hasBackend) return PEOPLE.find((p) => p.id === id) ?? null;
   const { data, error } = await supabase!.from('profiles').select('*').eq('id', id).maybeSingle();
   if (error) throw error;
-  return data ? rowToPerson(data) : null;
+  if (!data) return null;
+  const photos = await photosFor([id]);
+  return { ...rowToPerson(data), photo: photos[id] };
 }
 
 // PostgREST returns snake_case columns; the app uses camelCase. Convert on read.

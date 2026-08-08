@@ -38,7 +38,7 @@ export function TravellersBoard({ navigation }: any) {
 
         {(people ?? []).map((p) => (
           <Pressable key={p.id} onPress={() => navigation.navigate('TravelerProfile', { id: p.id })} style={[styles.person, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg }]}>
-            <Avatar name={p.name} size={48} />
+            <Avatar name={p.name} uri={p.photo} size={48} />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{p.name}, {p.age}</Text>

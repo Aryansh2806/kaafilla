@@ -1,5 +1,33 @@
+import { File } from 'expo-file-system';
 import { supabase } from './client';
 import type { Profile } from '../types';
+
+// Upload local image URIs to the public 'avatars' bucket under <uid>/, returning
+// their public URLs. Already-remote (http) URIs pass through unchanged, and any
+// single upload that fails is skipped rather than failing onboarding.
+async function uploadPhotos(uris: string[], uid: string): Promise<string[]> {
+  if (!supabase) return [];
+  const out: string[] = [];
+  for (let i = 0; i < uris.length; i++) {
+    const uri = uris[i];
+    if (/^https?:\/\//.test(uri)) {
+      out.push(uri);
+      continue;
+    }
+    try {
+      const bytes = await new File(uri).bytes();
+      const path = `${uid}/${i + 1}.jpg`;
+      const { error } = await supabase.storage
+        .from('avatars')
+        .upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
+      if (error) throw error;
+      out.push(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl);
+    } catch {
+      // skip this photo
+    }
+  }
+  return out;
+}
 
 // Email OTP (6-digit code) auth over Supabase. The app's existing OTP keypad
 // screen enters the code, so no magic-link deep-linking is needed on native.
@@ -141,8 +169,9 @@ export async function saveProfile(patch: Partial<Profile>): Promise<void> {
   }
 
   if (patch.photos) {
+    const urls = await uploadPhotos(patch.photos, uid); // local URIs → public Storage URLs
     await supabase.from('photos').delete().eq('profile_id', uid);
-    const rows = patch.photos.slice(0, 3).map((url, i) => ({ profile_id: uid, url, slot: i + 1 }));
+    const rows = urls.slice(0, 3).map((url, i) => ({ profile_id: uid, url, slot: i + 1 }));
     if (rows.length) {
       const { error } = await supabase.from('photos').insert(rows);
       if (error) throw error;

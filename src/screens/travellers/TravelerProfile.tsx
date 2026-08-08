@@ -76,7 +76,7 @@ export function TravelerProfile({ navigation, route }: any) {
       <View style={{ paddingHorizontal: 20 }}><Header onBack={() => navigation.goBack()} /></View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', marginTop: 8 }}>
-          <Avatar name={p.name} size={96} />
+          <Avatar name={p.name} uri={p.photo} size={96} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
             <Text style={{ color: t.colors.text, fontSize: t.typography.size['2xl'], fontWeight: '600' }}>{p.name}, {p.age}</Text>
             <VerifiedBadge size={16} />
