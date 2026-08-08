@@ -25,7 +25,7 @@ about layout, copy, or a state, open the prototype and match it.
 | Anim | react-native-reanimated 4 (+ react-native-worklets), gesture-handler |
 | Lists | @shopify/flash-list |
 | Sheets | @gorhom/bottom-sheet |
-| Backend | Supabase — Postgres, Auth (phone OTP), Realtime, Storage, RLS, Edge Functions (Deno) |
+| Backend | Supabase — Postgres, Auth (email + password), Realtime, Storage, RLS, Edge Functions (Deno) |
 | Native seams (simulated) | expo-camera, expo-local-authentication, expo-location, expo-image-picker, expo-haptics, expo-blur |
 
 ## Getting started (new developer)
@@ -158,7 +158,7 @@ src/
   types/  utils/
 ```
 
-## Status — what's built (all typecheck- + bundle-clean, verified on simulator)
+## Status — what's built (all typecheck- + bundle-clean, verified on device)
 
 Every screen from the prototype **and** the explorations archive is implemented:
 
@@ -170,31 +170,43 @@ Every screen from the prototype **and** the explorations archive is implemented:
   table + best-of + dot-plot + hide-same + Choose), Reviews, LocalDiscover/Explore, PlaceDetail.
 - **Verification**: VerifyGate sheet → AadhaarOTP → SelfieCapture → Matching → VerifySuccess, gated
   app-wide via `useVerifiedAction` + `AppStack`.
-- **Waitlist/wallet**: Joined, WaitlistView (priority open/active/sold-out, 4 terminal states,
-  wallet-integrated ₹49 economy).
+- **Waitlist/wallet**: Joined, WaitlistView (priority open/active/sold-out, terminal states,
+  server-authoritative ₹49 economy — see Backend below).
 - **Travellers/chat**: TravellersBoard, TravelerProfile (handle lock/unlock), LookingForCompany,
   CreatePost, ChatList (Chats/Requests tabs, group locked→live→archived, Cancel sent),
   ChatRoom (Instagram link, mesh banner, archived read-only). Lock variants on all gated tabs.
 - **You**: MyProfile, EditProfile, Wallet (+ledger), TripHistory, MyTrips, HostRequests, CreatePlan,
   SettleLedger (UPI), Safety, Activity.
 
-**Backend**: full Supabase schema + RLS (gating matrix) + seed applied and live. Catalog reads
-(trips/plans/operators/reviews) come from Postgres; social/profile tables are RLS-gated.
+**Backend (live Supabase)**: full schema + RLS (gating matrix) + seed applied. Auth is **email + password**
+(`signInOrSignUp`), not phone OTP. Catalog reads (trips/plans/operators/reviews) come from Postgres, and the
+following have shipped since — they're **live, not simulated**:
+- **Connects + 1:1 chat** over Supabase Realtime (send/accept, `getOrCreateSoloChat`, messages) — no longer client-side.
+- **Push notifications** for connects & messages via `expo-notifications` + the `notify-push` Edge Function
+  (needs FCM/EAS creds + a native rebuild to actually deliver — see `supabase/PUSH_SETUP.md`).
+- **Real listing photos**: `images text[]` on trips/plans + a public `listings` Storage bucket; hosts upload from
+  CreatePlan. Reads prefer DB images, else the placeholder map (`coverFor`/`galleryFor`).
+- **Server-authoritative ₹49 economy + waitlist** via the `economy` Edge Function: join, ₹49 priority
+  (cash/wallet, cap 6/batch), seat lifecycle (call → 24h pay → pg_cron auto-forfeit), batch-fill wallet credit, and
+  the host charge on the first plan-join. Ordering + wallet are tamper-proof (RLS + service role). See `ECONOMY_SETUP.md`.
+- **Real plan-join flow**: `plan_joins` table — a traveller asks (PlanDetail), the host accepts/declines
+  (HostRequests) via the `respond-join` action, which bumps `joined` and fires the ₹49 host charge on first accept.
 
-### What's intentionally simulated (swap-in points, not gaps)
-- **Auth**: phone OTP is simulated (any 6 digits). Real login needs an SMS provider configured in
-  `supabase/config.toml` (`[auth.sms]`, e.g. Twilio/MSG91). This is the key unlock — it enables
-  live RLS-enforced profiles, realtime chat, and the write-side Edge Functions.
+Migrations are applied by hand in Studio, Edge Functions deploy via the dashboard (see CLAUDE.md): stage7 (push),
+stage8 (images), stage9 + stage9b (economy + an RLS-recursion fix), stage10 (plan-joins).
+
+### What's still simulated (swap-in points, not gaps)
 - **Aadhaar KYC / UPI / Bluetooth mesh**: simulated behind `src/{verification,payments,mesh}/`.
-- **Chat/connects**: client-side (`chatStore`) until auth sessions exist; then move to Realtime.
-- **Edge Functions** (waitlist queue ordering, seat lifecycle, wallet credit, connect-respond,
-  settlement-confirm): the client simulates these outcomes today; implement server-side under
-  `supabase/functions/` when auth is live.
+- **The ₹49 money movement is recorded-only**: the economy Edge Function writes authoritative ledger/state, but no
+  real charge happens (payment stays behind the `src/payments/` seam).
+- **Settlement confirm** (SettleLedger): still client-side.
+- **Operator-triggered seat-calling**: there's no operator app, so `call-seat`/`finalize-batch` are traveller-triggered
+  in the demo; the 24h forfeit is already automatic via pg_cron.
 
 ### Suggested next steps for the new dev
-1. Wire real phone-OTP auth (SMS provider) → real sessions.
-2. Move connects/chat to Supabase Realtime; implement the write-side Edge Functions.
-3. Replace the KYC/UPI/mesh simulated impls with real SDKs behind the existing seams.
-4. Add real trip images (feed/detail currently use gradient placeholders).
+1. Set up **FCM + EAS** and rebuild to activate remote push, then verify app-closed delivery (`PUSH_SETUP.md`).
+2. Replace the **KYC / UPI / mesh** simulated impls with real SDKs behind the existing seams; wire a real ₹49 UPI charge.
+3. Build an **operator/admin surface** for seat-calling + batch finalize (today they're demo-triggered).
+4. Move **settlement confirm** server-side (both-sides-confirm) behind an Edge Function.
 
 Original phase plan (historical): `~/.claude/plans/jazzy-questing-whale.md`.
