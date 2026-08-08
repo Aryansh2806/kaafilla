@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { View, ScrollView, StyleSheet, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { Image } from 'expo-image';
+import { FullscreenGallery } from './FullscreenGallery';
 
 // Swipeable, paged photo gallery (Amazon-style product hero). Dots track the
-// active page; a top scrim keeps an overlaid back button legible.
+// active page; a top scrim keeps an overlaid back button legible. Tapping a
+// photo opens a full-screen pinch-to-zoom viewer.
 export function PhotoCarousel({ images, height = 280 }: { images: string[]; height?: number }) {
   const { width } = useWindowDimensions();
   const [idx, setIdx] = useState(0);
+  const [viewer, setViewer] = useState<number | null>(null);
 
   if (!images.length) return null;
 
@@ -23,9 +26,13 @@ export function PhotoCarousel({ images, height = 280 }: { images: string[]; heig
         onMomentumScrollEnd={onEnd}
       >
         {images.map((uri, i) => (
-          <Image key={i} source={uri} style={{ width, height }} contentFit="cover" transition={250} cachePolicy="memory-disk" />
+          <Pressable key={i} onPress={() => setViewer(i)} accessibilityRole="imagebutton" accessibilityLabel={`Photo ${i + 1} of ${images.length} — tap to view full screen`}>
+            <Image source={uri} style={{ width, height }} contentFit="cover" transition={250} cachePolicy="memory-disk" />
+          </Pressable>
         ))}
       </ScrollView>
+
+      <FullscreenGallery images={images} index={viewer ?? 0} visible={viewer !== null} onClose={() => setViewer(null)} />
 
       <View style={styles.topScrim} pointerEvents="none" />
 

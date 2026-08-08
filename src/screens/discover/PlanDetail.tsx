@@ -9,6 +9,8 @@ import { Button } from '../../components/atoms/Button';
 import { LeadBadge, Tag } from '../../components/atoms/Badges';
 import { ProgressBar } from '../../components/atoms/Progress';
 import { Avatar } from '../../components/atoms/Avatar';
+import { PhotoCarousel } from '../../components/molecules/PhotoCarousel';
+import { heroImages } from '../../data/tripImages';
 
 export function PlanDetail({ navigation, route }: any) {
   const t = useTheme();
@@ -20,6 +22,7 @@ export function PlanDetail({ navigation, route }: any) {
 
   if (!plan) return <View style={{ flex: 1, backgroundColor: t.colors.bg }} />;
 
+  const imgs = heroImages(id, plan.region);
   const ask = () => {
     if (!verified) return navigation.navigate('VerifyGate', { id, gateFrom: 'ask' });
     setAsked(true);
@@ -28,8 +31,16 @@ export function PlanDetail({ navigation, route }: any) {
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        <View style={{ paddingTop: insets.top, paddingHorizontal: 20 }}>
-          <Header onBack={() => navigation.goBack()} right={<LeadBadge lead="plan" />} />
+        {imgs.length ? (
+          <View>
+            <PhotoCarousel images={imgs} height={260} />
+            <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, paddingHorizontal: 20 }}>
+              <Header onBack={() => navigation.goBack()} right={<LeadBadge lead="plan" />} />
+            </View>
+          </View>
+        ) : null}
+        <View style={{ paddingTop: imgs.length ? 12 : insets.top, paddingHorizontal: 20 }}>
+          {!imgs.length && <Header onBack={() => navigation.goBack()} right={<LeadBadge lead="plan" />} />}
           <Text style={{ color: t.colors.text, fontSize: t.typography.size['3xl'], fontWeight: '500', marginTop: 12 }}>{plan.name}</Text>
           <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm, marginTop: 6 }}>
             {plan.month} · {plan.days} days · {plan.place} · {plan.stay}
