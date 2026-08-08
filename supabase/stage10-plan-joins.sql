@@ -31,9 +31,10 @@ create policy pj_insert on public.plan_joins for insert
 drop policy if exists pj_read_own on public.plan_joins;
 create policy pj_read_own on public.plan_joins for select using (traveller_id = me());
 
+-- NB: plans.host_id is a text column, so cast me() (uuid) to text to compare.
 drop policy if exists pj_read_host on public.plan_joins;
 create policy pj_read_host on public.plan_joins for select
-  using (plan_id in (select id from public.plans where host_id = me()));
+  using (plan_id in (select id from public.plans where host_id = me()::text));
 
 -- No client UPDATE/DELETE: accept/decline (and the joined bump + host charge)
 -- happen only in the economy Edge Function with the service role.
