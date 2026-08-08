@@ -69,9 +69,11 @@ export function WaitlistView({ navigation, route }: any) {
   const rows = wl.data?.rows ?? [];
   const balance = walletQ.isSuccess ? walletQ.data.balance : store.balance;
 
-  const myPos = me?.position ?? FALLBACK_POS;
+  const myPos = me && me.position > 0 ? me.position : FALLBACK_POS;
   const inSeats = myPos <= seats;
   const phase: Phase = live && me ? phaseFromStatus(me.status) : localPhase;
+  // Terminal states leave the live queue — show only the outcome card.
+  const terminal = phase === 'missed' || phase === 'forfeit' || phase === 'paid';
   const priorityActive = live && me ? me.hasPriority : localPri !== 'none';
   const priorityCount = rows.filter((r) => r.hasPriority).length;
   const soldOut = live ? priorityCount >= PRIORITY_CAP && !me?.hasPriority : trip.waitlist > 15;
@@ -109,16 +111,22 @@ export function WaitlistView({ navigation, route }: any) {
         <Header title="Trip" onBack={() => navigation.goBack()} />
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Text style={{ color: t.colors.text, fontSize: t.typography.size['3xl'], fontWeight: '500', marginTop: 8 }}>You’re #{myPos} in the queue</Text>
-        <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: 6 }}>{seats} seats left · {trip.waitlist} in the queue</Text>
-        <Text style={[sub, { marginTop: 4 }]}>{inSeats ? 'You’re inside the seats as it stands.' : `${myPos - seats} people ahead of you would have to drop out.`}</Text>
+        {terminal ? (
+          <Text style={{ color: t.colors.text, fontSize: t.typography.size['3xl'], fontWeight: '500', marginTop: 8 }}>{trip.name}</Text>
+        ) : (
+          <>
+            <Text style={{ color: t.colors.text, fontSize: t.typography.size['3xl'], fontWeight: '500', marginTop: 8 }}>You’re #{myPos} in the queue</Text>
+            <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: 6 }}>{seats} seats left · {trip.waitlist} in the queue</Text>
+            <Text style={[sub, { marginTop: 4 }]}>{inSeats ? 'You’re inside the seats as it stands.' : `${myPos - seats} people ahead of you would have to drop out.`}</Text>
+          </>
+        )}
 
         <Card title="Final call on Sep 10">
           <Text style={sub}>Two days before the trip.</Text>
         </Card>
 
         {/* Priority */}
-        {!priorityActive && soldOut ? (
+        {terminal ? null : !priorityActive && soldOut ? (
           <Card title="Priority sold out">
             <Text style={sub}>Priority is sold out for this batch — only {PRIORITY_CAP} are ever sold, so it stays worth something.</Text>
           </Card>
@@ -138,18 +146,22 @@ export function WaitlistView({ navigation, route }: any) {
         )}
 
         {/* Queue */}
-        <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 24, marginBottom: 8 }}>The queue, in order</Text>
-        {displayQueue.map((row, i) => {
-          const you = row.name === 'You';
-          return (
-            <View key={i} style={[styles.qrow, you && { backgroundColor: t.colors.surfaceRaised, borderRadius: t.radius.md }]}>
-              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2, width: 30 }}>#{row.pos}</Text>
-              <Text style={{ color: you ? t.colors.accentL3 : t.colors.text, fontSize: t.typography.size.md, flex: 1, fontWeight: you ? '600' : '400' }}>{row.name}</Text>
-              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>{row.inSeats ? 'In the seats' : 'Below the line'}</Text>
-            </View>
-          );
-        })}
-        <Text style={[sub, { marginTop: 12 }]}>Nobody pays for the trip until the seats are called. Priority is the only thing you pay for now.</Text>
+        {!terminal && (
+          <>
+            <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 24, marginBottom: 8 }}>The queue, in order</Text>
+            {displayQueue.map((row, i) => {
+              const you = row.name === 'You';
+              return (
+                <View key={i} style={[styles.qrow, you && { backgroundColor: t.colors.surfaceRaised, borderRadius: t.radius.md }]}>
+                  <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2, width: 30 }}>#{row.pos}</Text>
+                  <Text style={{ color: you ? t.colors.accentL3 : t.colors.text, fontSize: t.typography.size.md, flex: 1, fontWeight: you ? '600' : '400' }}>{row.name}</Text>
+                  <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>{row.inSeats ? 'In the seats' : 'Below the line'}</Text>
+                </View>
+              );
+            })}
+            <Text style={[sub, { marginTop: 12 }]}>Nobody pays for the trip until the seats are called. Priority is the only thing you pay for now.</Text>
+          </>
+        )}
 
         {/* Seat lifecycle */}
         <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 24, marginBottom: 8 }}>What happens next</Text>

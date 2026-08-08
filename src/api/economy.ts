@@ -95,7 +95,23 @@ export async function getWaitlist(tripId: string): Promise<WaitlistState> {
     hasPriority: r.has_priority,
     isMe: r.profile_id === me,
   }));
-  return { rows: out, me: out.find((r) => r.isMe) ?? null };
+
+  // The ordered view only carries the live queue (pending/called/confirmed).
+  // Fetch the caller's own entry directly so terminal states (missed/forfeit)
+  // — which drop out of the view — still surface on the screen.
+  let mine = out.find((r) => r.isMe) ?? null;
+  if (!mine && me) {
+    const { data: own } = await supabase
+      .from('waitlist_entries')
+      .select('id,status,has_priority')
+      .eq('trip_id', tripId)
+      .eq('profile_id', me)
+      .maybeSingle();
+    if (own) {
+      mine = { id: own.id, profileId: me, name: 'You', position: 0, status: own.status as WlStatus, hasPriority: own.has_priority, isMe: true };
+    }
+  }
+  return { rows: out, me: mine };
 }
 
 // The caller's wallet + ledger (RLS: owner-only).
