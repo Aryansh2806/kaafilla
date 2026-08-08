@@ -30,6 +30,7 @@ export interface Trip {
   lead: Lead;
   leadYears: number;
   cities: string; // departs from
+  images?: string[]; // operator-supplied photo URLs (images[0] = cover); [] falls back to placeholders
 }
 
 export interface Plan {
@@ -51,6 +52,7 @@ export interface Plan {
   dates: 'flexible' | 'fixed';
   cities: string;
   note: string;
+  images?: string[]; // host-supplied photo URLs (images[0] = cover); [] falls back to placeholders
 }
 
 export interface Person {

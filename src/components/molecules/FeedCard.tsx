@@ -6,7 +6,7 @@ import { LeadBadge, Tag } from '../atoms/Badges';
 import { RatioBar } from '../atoms/Progress';
 import { Avatar } from '../atoms/Avatar';
 import { gradients } from '../../theme/tokens';
-import { heroImage } from '../../data/tripImages';
+import { coverFor } from '../../data/tripImages';
 import type { Trip, Plan } from '../../types';
 
 const fmtK = (n: number) => `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
@@ -57,7 +57,7 @@ export function FeedCard(props: ({ type: 'trip'; data: Trip } | { type: 'plan'; 
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, { backgroundColor: t.colors.surface, borderRadius: t.radius.lg, borderColor: t.colors.n800, transform: [{ scale: pressed ? 0.98 : 1 }] }]}>
-      <Hero label={props.data.place} gid={`h-${props.data.id}`} uri={heroImage(props.data.id, props.data.region)} />
+      <Hero label={props.data.place} gid={`h-${props.data.id}`} uri={coverFor(props.data)} />
       <View style={styles.badges}>
         {props.type === 'plan' && <LeadBadge lead="plan" />}
         <LeadBadge lead={props.data.lead} />

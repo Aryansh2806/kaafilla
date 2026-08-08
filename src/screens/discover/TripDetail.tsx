@@ -12,7 +12,7 @@ import { LeadBadge } from '../../components/atoms/Badges';
 import { RatioBar } from '../../components/atoms/Progress';
 import { Avatar } from '../../components/atoms/Avatar';
 import { PhotoCarousel } from '../../components/molecules/PhotoCarousel';
-import { heroImage, heroImages } from '../../data/tripImages';
+import { coverFor, galleryFor } from '../../data/tripImages';
 import { gradients } from '../../theme/tokens';
 import type { Trip } from '../../types';
 
@@ -31,7 +31,7 @@ const fmtK = (n: number) => `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
 // Compact horizontal card for the "similar trips" rail.
 function SimilarCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
   const t = useTheme();
-  const uri = heroImage(trip.id, trip.region);
+  const uri = coverFor(trip);
   return (
     <Pressable
       onPress={onPress}
@@ -90,7 +90,7 @@ export function TripDetail({ navigation, route }: any) {
 
   const price = override?.price ?? trip.price;
   const operatorName = override?.name ?? op?.name;
-  const imgs = heroImages(id, trip.region);
+  const imgs = galleryFor(trip);
   const join = () => navigation.navigate(verified ? 'Joined' : 'VerifyGate', { id, gateFrom: 'waitlist' });
 
   return (

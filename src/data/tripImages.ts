@@ -39,3 +39,16 @@ export function heroImages(id: string, region?: string): string[] {
 export function heroImage(id: string, region?: string): string | undefined {
   return heroImages(id, region)[0];
 }
+
+// Real listings (feature #7): prefer the operator/host-supplied `images` from the
+// DB; fall back to the placeholder map when a listing has none. Everything that
+// renders a trip/plan photo goes through these two so the precedence is uniform.
+type Listing = { id: string; region?: string; images?: string[] };
+
+export function galleryFor(item: Listing): string[] {
+  return item.images && item.images.length ? item.images : heroImages(item.id, item.region);
+}
+
+export function coverFor(item: Listing): string | undefined {
+  return galleryFor(item)[0];
+}

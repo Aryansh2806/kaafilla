@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { supabase } from './client';
 import type { Plan, Lead } from '../types';
 
@@ -42,6 +43,34 @@ export interface NewPlanInput {
   hostName: string;
   hostId: string;
   lead?: Lead;
+  photos?: string[]; // local image URIs to upload (already-remote http URLs pass through)
+}
+
+// Upload local image URIs to the public 'listings' bucket under <uid>/<planId>/,
+// returning ordered public URLs. Mirrors the avatar uploader: remote URLs pass
+// through, and any single failed upload is skipped rather than failing the post.
+async function uploadListingPhotos(uris: string[], uid: string, planId: string): Promise<string[]> {
+  if (!supabase || uris.length === 0) return [];
+  const out: string[] = [];
+  for (let i = 0; i < uris.length; i++) {
+    const uri = uris[i];
+    if (/^https?:\/\//.test(uri)) {
+      out.push(uri);
+      continue;
+    }
+    try {
+      const bytes = await new File(uri).bytes();
+      const path = `${uid}/${planId}/${i + 1}.jpg`;
+      const { error } = await supabase.storage
+        .from('listings')
+        .upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
+      if (error) throw error;
+      out.push(supabase.storage.from('listings').getPublicUrl(path).data.publicUrl);
+    } catch {
+      // skip this photo
+    }
+  }
+  return out;
 }
 
 function rowToPlan(r: Record<string, any>): Plan {
@@ -64,14 +93,17 @@ function rowToPlan(r: Record<string, any>): Plan {
     dates: (r.dates ?? 'flexible') as 'flexible' | 'fixed',
     cities: r.cities ?? '',
     note: r.note ?? '',
+    images: Array.isArray(r.images) ? r.images : [],
   };
 }
 
 // Host a traveller plan. Requires a verified session (enforced by RLS too).
 export async function createPlan(input: NewPlanInput): Promise<Plan> {
   if (!supabase) throw new Error('Backend not configured');
+  const id = planId(input.place);
+  const images = await uploadListingPhotos(input.photos ?? [], input.hostId, id);
   const row = {
-    id: planId(input.place),
+    id,
     name: input.place,
     place: input.place,
     region: inferRegion(input.place),
@@ -84,6 +116,7 @@ export async function createPlan(input: NewPlanInput): Promise<Plan> {
     dates: 'flexible' as const,
     cities: '',
     note: input.note,
+    images,
   };
   const { data, error } = await supabase.from('plans').insert(row).select().single();
   if (error) throw error;

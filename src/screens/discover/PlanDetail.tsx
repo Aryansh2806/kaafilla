@@ -11,7 +11,7 @@ import { LeadBadge, Tag } from '../../components/atoms/Badges';
 import { ProgressBar } from '../../components/atoms/Progress';
 import { Avatar } from '../../components/atoms/Avatar';
 import { PhotoCarousel } from '../../components/molecules/PhotoCarousel';
-import { heroImage, heroImages } from '../../data/tripImages';
+import { coverFor, galleryFor } from '../../data/tripImages';
 import type { Plan } from '../../types';
 
 const fmtK = (n: number) => `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
@@ -19,7 +19,7 @@ const fmtK = (n: number) => `₹${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
 // Compact horizontal card for the "similar plans" rail.
 function SimilarPlanCard({ plan, onPress }: { plan: Plan; onPress: () => void }) {
   const t = useTheme();
-  const uri = heroImage(plan.id, plan.region);
+  const uri = coverFor(plan);
   return (
     <Pressable
       onPress={onPress}
@@ -75,7 +75,7 @@ export function PlanDetail({ navigation, route }: any) {
 
   if (!plan) return <View style={{ flex: 1, backgroundColor: t.colors.bg }} />;
 
-  const imgs = heroImages(id, plan.region);
+  const imgs = galleryFor(plan);
   const ask = () => {
     if (!verified) return navigation.navigate('VerifyGate', { id, gateFrom: 'ask' });
     setAsked(true);

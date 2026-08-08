@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { View, Text, Alert } from 'react-native';
+import { View, Text, Pressable, ScrollView, Alert, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -10,6 +12,8 @@ import { useAuthStore } from '../../store/authStore';
 import { hasBackend } from '../../api/client';
 import { createPlan } from '../../api/writes';
 
+const MAX_PHOTOS = 5;
+
 export function CreatePlan({ navigation }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -19,7 +23,32 @@ export function CreatePlan({ navigation }: any) {
   const [where, setWhere] = useState('');
   const [cost, setCost] = useState('');
   const [what, setWhat] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
+
+  const addPhotos = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Photo access needed', 'Allow photo access to add trip photos.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: MAX_PHOTOS - photos.length,
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets?.length) {
+        const uris = res.assets.map((a) => a.uri);
+        setPhotos((p) => [...p, ...uris].slice(0, MAX_PHOTOS));
+      }
+    } catch (e: any) {
+      Alert.alert('Could not open photos', e?.message ?? 'Please try again.');
+    }
+  };
+
+  const removePhoto = (uri: string) => setPhotos((p) => p.filter((u) => u !== uri));
 
   const post = async () => {
     if (!verified) return navigation.navigate('VerifyGate', { gateFrom: 'host' });
@@ -33,6 +62,7 @@ export function CreatePlan({ navigation }: any) {
         hostName: user.firstName,
         hostId: user.id,
         lead: user.lead,
+        photos,
       });
       await qc.invalidateQueries({ queryKey: ['plans'] });
       navigation.goBack();
@@ -56,6 +86,38 @@ export function CreatePlan({ navigation }: any) {
           <Input label="Where" value={where} onChangeText={setWhere} placeholder="Tirthan Valley, Himachal" />
           <Input label="Rough cost each" value={cost} onChangeText={setCost} keyboardType="number-pad" placeholder="₹14,000" />
           <TextArea label="What the trip is" value={what} onChangeText={setWhat} placeholder="A cabin by the river, no fixed plan beyond trout and a lot of nothing." />
+
+          {/* Listing photos */}
+          <View>
+            <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: t.spacing[2] }}>
+              Photos {photos.length ? `· ${photos.length}/${MAX_PHOTOS}` : '· optional'}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+              {photos.map((uri, i) => (
+                <View key={uri} style={[styles.thumb, { borderColor: t.colors.n800, borderRadius: t.radius.md }]}>
+                  <Image source={uri} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  {i === 0 && (
+                    <View style={[styles.coverTag, { backgroundColor: t.colors.accentD4 }]}>
+                      <Text style={{ color: t.colors.accentL2, fontSize: t.typography.size['2xs'], fontWeight: '700' }}>COVER</Text>
+                    </View>
+                  )}
+                  <Pressable onPress={() => removePhoto(uri)} accessibilityRole="button" accessibilityLabel="Remove photo" style={styles.remove}>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>×</Text>
+                  </Pressable>
+                </View>
+              ))}
+              {photos.length < MAX_PHOTOS && (
+                <Pressable onPress={addPhotos} accessibilityRole="button" accessibilityLabel="Add photos"
+                  style={[styles.addTile, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.md }]}>
+                  <Text style={{ color: t.colors.textSub, fontSize: t.typography.size['2xl'] }}>+</Text>
+                  <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>Add</Text>
+                </Pressable>
+              )}
+            </ScrollView>
+            <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 6 }}>
+              The first photo is the cover. Skip this and we’ll use a placeholder for the region.
+            </Text>
+          </View>
         </View>
 
         <View style={{ backgroundColor: t.colors.sectionBg, borderRadius: t.radius.lg, padding: 14, marginTop: 16 }}>
@@ -75,3 +137,10 @@ export function CreatePlan({ navigation }: any) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  thumb: { width: 88, height: 88, overflow: 'hidden', borderWidth: 1 },
+  addTile: { width: 88, height: 88, borderWidth: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  coverTag: { position: 'absolute', left: 4, bottom: 4, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  remove: { position: 'absolute', top: 2, right: 2, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+});
