@@ -1,8 +1,12 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
 import { usePerson } from '../../api/hooks';
 import { useChatStore } from '../../store/chatStore';
+import { hasBackend } from '../../api/client';
+import { getConnectStatusWith, sendConnect } from '../../api/social';
 import { Header } from '../../components/molecules/Header';
 import { Button } from '../../components/atoms/Button';
 import { Chip } from '../../components/atoms/Chip';
@@ -33,9 +37,36 @@ function Chips({ items }: { items: string[] }) {
 export function TravelerProfile({ navigation, route }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { data: p } = usePerson(route.params?.id ?? 'meera');
-  const status = useChatStore((s) => s.connectStatus(route.params?.id ?? 'meera'));
-  const sendConnect = useChatStore((s) => s.sendConnect);
+  const peerId = route.params?.id ?? 'meera';
+  const { data: p } = usePerson(peerId);
+  const qc = useQueryClient();
+  const chatStatus = useChatStore((s) => s.connectStatus(peerId));
+  const chatSend = useChatStore((s) => s.sendConnect);
+  const { data: beStatus } = useQuery({
+    queryKey: ['connect', peerId],
+    queryFn: () => getConnectStatusWith(peerId),
+    enabled: hasBackend,
+  });
+  const [sending, setSending] = useState(false);
+  const status = hasBackend ? beStatus ?? 'none' : chatStatus;
+
+  const onConnect = async () => {
+    if (!hasBackend) {
+      chatSend(peerId);
+      return;
+    }
+    try {
+      setSending(true);
+      await sendConnect(peerId);
+      await qc.invalidateQueries({ queryKey: ['connect', peerId] });
+      await qc.invalidateQueries({ queryKey: ['sent'] });
+    } catch (e: any) {
+      Alert.alert('Could not send connect', e?.message ?? 'Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (!p) return <View style={{ flex: 1, backgroundColor: t.colors.bg }} />;
 
   const connected = status === 'accepted';
@@ -94,11 +125,13 @@ export function TravelerProfile({ navigation, route }: any) {
 
         <View style={{ marginTop: 24 }}>
           {connected ? (
-            <Button label="Open chat" onPress={() => navigation.navigate('Main', { screen: 'Chats', params: { screen: 'ChatRoom', params: { chatId: p.id, name: p.name, kind: 'solo', handle: p.handle } } })} />
+            <Button label="Open chat" onPress={() => navigation.navigate('Main', { screen: 'Chats', params: { screen: 'ChatRoom', params: { peerId: p.id, name: p.name, kind: 'solo', handle: p.handle } } })} />
           ) : status === 'sent' ? (
             <Button label="Connect sent · waiting" variant="secondary" disabled />
+          ) : status === 'incoming' ? (
+            <Button label="They asked to connect — reply in Chats" variant="secondary" onPress={() => navigation.navigate('Main', { screen: 'Chats' })} />
           ) : (
-            <Button label="Send a connect" onPress={() => sendConnect(p.id)} />
+            <Button label={sending ? 'Sending…' : 'Send a connect'} onPress={onConnect} disabled={sending} />
           )}
         </View>
         <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 16, textAlign: 'center' }}>Report or block {p.name}</Text>

@@ -1,27 +1,49 @@
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Screen } from '../../components/layout/Screen';
 import { Input } from '../../components/atoms/Input';
 import { Button } from '../../components/atoms/Button';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuthStore } from '../../store/authStore';
 import { brand } from '../../data/copy';
+import { hasBackend } from '../../api/client';
+import { signInOrSignUp, getCurrentProfile } from '../../api/auth';
 
+// Email + password sign-in (no email delivery needed). One form for new and
+// returning users: signInOrSignUp creates the account if it doesn't exist. New
+// users continue to profile build; returning users with a profile go to the app.
 export function PhoneEntry({ navigation }: any) {
   const t = useTheme();
-  const [num, setNum] = useState('98204 41823');
-  const setReturning = useAuthStore((s) => s.setReturning);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
   const patchDraft = useAuthStore((s) => s.patchDraft);
-  const returning = useAuthStore((s) => s.returning);
+  const signIn = useAuthStore((s) => s.signIn);
 
-  const digits = num.replace(/\D/g, '');
-  const valid = digits.length >= 10;
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const valid = emailOk && password.length >= 6;
 
-  const branch = (isReturning: boolean) => setReturning(isReturning);
-
-  const cont = () => {
-    patchDraft({ phone: `+91 ${num}` });
-    navigation.navigate('OTPVerify');
+  const cont = async () => {
+    const addr = email.trim().toLowerCase();
+    patchDraft({ email: addr });
+    if (!hasBackend) {
+      navigation.navigate('PhotoUpload');
+      return;
+    }
+    try {
+      setBusy(true);
+      await signInOrSignUp(addr, password);
+      const res = await getCurrentProfile();
+      if (res && res.complete) {
+        signIn(res.profile); // returning user with a profile → straight to the app
+      } else {
+        navigation.navigate('PhotoUpload'); // new user → build the profile
+      }
+    } catch (e: any) {
+      Alert.alert('Could not sign in', e?.message ?? 'Check your details and try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -31,55 +53,45 @@ export function PhoneEntry({ navigation }: any) {
           {brand.name}
         </Text>
         <Text style={{ color: t.colors.text, fontSize: t.typography.size['4xl'], fontWeight: '500', marginTop: t.spacing[4], lineHeight: t.typography.size['4xl'] * 1.1 }}>
-          What’s your{'\n'}number?
+          Sign in or{'\n'}sign up
         </Text>
         <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.md, marginTop: t.spacing[3], lineHeight: t.typography.size.md * t.typography.lineHeight.relaxed }}>
-          Your kaafila starts with a verified phone. We never show it to other travellers.
+          Use your email and a password. New here? We’ll create your account. We never show your email to other travellers.
         </Text>
 
-        <View style={{ flexDirection: 'row', gap: t.spacing[2], marginTop: t.spacing[6] }}>
-          <View style={[styles.prefix, { backgroundColor: t.colors.surface, borderColor: t.colors.border, borderRadius: t.radius.md }]}>
-            <Text style={{ color: t.colors.text, fontSize: t.typography.size.md }}>🇮🇳 +91</Text>
-          </View>
-          <Input value={num} onChangeText={setNum} keyboardType="number-pad" containerStyle={{ flex: 1 }} label={undefined} />
+        <View style={{ marginTop: t.spacing[6], gap: t.spacing[3] }}>
+          <Input
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="emailAddress"
+            placeholder="you@example.com"
+            label={undefined}
+          />
+          <Input
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="password"
+            placeholder="Password (6+ characters)"
+            label={undefined}
+          />
         </View>
 
         <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: t.spacing[3], lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
-          🔒 One account per number. Getting removed for harassment means the number is gone too.
+          🔒 One account per email. Getting removed for harassment means the account is gone too.
         </Text>
-
-        {/* Prototype-only branch selector */}
-        <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: t.spacing[8] }}>
-          Prototype only · which number is this?
-        </Text>
-        <View style={{ gap: t.spacing[3], marginTop: t.spacing[3] }}>
-          {[
-            { r: false, a: 'New number', b: '→ build a profile' },
-            { r: true, a: 'Already has an account', b: '→ straight to trips' },
-          ].map((o) => (
-            <Pressable
-              key={String(o.r)}
-              onPress={() => branch(o.r)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: returning === o.r }}
-              style={[styles.branch, { backgroundColor: t.colors.surface, borderRadius: t.radius.lg, borderColor: returning === o.r ? t.colors.accent : t.colors.n800 }]}
-            >
-              <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{o.a}</Text>
-              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>{o.b}</Text>
-            </Pressable>
-          ))}
-        </View>
 
         <View style={{ marginTop: 'auto', paddingVertical: t.spacing[4] }}>
-          <Button label={returning ? 'Send code' : 'Send code'} onPress={cont} disabled={!valid} />
+          <Button label={busy ? 'Please wait…' : 'Continue'} onPress={cont} disabled={!valid || busy} />
         </View>
       </View>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  prefix: { justifyContent: 'center', paddingHorizontal: 14, minHeight: 44, borderWidth: 1 },
-  branch: { padding: 15, borderWidth: 1 },
-});
+const styles = StyleSheet.create({ flex: { flex: 1 } });

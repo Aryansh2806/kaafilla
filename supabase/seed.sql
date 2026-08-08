@@ -19,10 +19,8 @@ insert into public.trips (id,name,place,region,price,days,type,women_pct,rating,
   ('jaisalmer','Thar Desert Nights','Rajasthan','rajasthan',9600,3,'Deserts',41,4.0,'Camps','Easy','Nov',20,4,3,'marwar-trails','Karan','men',8,'Jaipur'),
   ('valley','Valley of Flowers','Uttarakhand','uttarakhand',13400,6,'Treks',71,4.5,'Homestays','Moderate','Sep',11,14,4,'himalayan-nomads','Meenakshi','women',6,'Rishikesh');
 
-insert into public.plans (id,name,place,region,cost_each,days,month,stay,group_size,joined,host_name,host_id,lead,host_trips,host_rating,dates,cities,note) values
-  ('tirthan','Tirthan Valley cabin week','Himachal','himachal',14000,7,'Oct','Homestays',6,4,'Arjun','arjun','men',3,4.7,'flexible','Delhi','A cabin by the river, four of us so far. No fixed plan beyond trout and a lot of nothing.'),
-  ('zanskar','Zanskar road trip, slow','Ladakh','ladakh',21000,9,'Sep','Hotels',5,2,'Nandita','nandita','women',2,4.5,'flexible','Leh','Renting one Thar between us. Looking for two more who can drive and split fuel.'),
-  ('varkala','Varkala work-and-swim','Kerala','kerala',11500,12,'Nov','Hostels',5,3,'Sana','sana','women',4,4.8,'fixed','Kochi','Remote work in the mornings, cliff and sea after. Need people who actually work, not party.');
+-- Traveller plans start empty — these are real, user-created via the app once
+-- auth is live (host_id references a real profile). Demo plans intentionally removed.
 
 insert into public.reviews (id,operator_id,name,stars,when_label,text) values
   ('r1','himalayan-nomads','Ritu',5,'Jun 2026','Trip lead checked in on every one of us at each stop. Rooms were exactly what the listing said.'),

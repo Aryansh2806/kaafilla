@@ -1,25 +1,88 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, Linking, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, Linking, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Header } from '../../components/molecules/Header';
 import { useChatStore } from '../../store/chatStore';
+import { useAuthStore } from '../../store/authStore';
 import { getMeshStatus } from '../../mesh';
+import { hasBackend, supabase } from '../../api/client';
+import { getOrCreateSoloChat, getMessages, sendMessage as apiSendMessage } from '../../api/social';
+
+type Row = { id: string; fromMe: boolean; body: string; sender?: string; relayHops?: number };
 
 export function ChatRoom({ navigation, route }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { chatId = 'group', name = 'Chat', kind = 'group', handle, archived = false } = route.params ?? {};
-  const messages = useChatStore((s) => s.messages[chatId] ?? []);
-  const sendMessage = useChatStore((s) => s.sendMessage);
+  const { chatId: paramChatId = 'group', peerId, name = 'Chat', kind = 'group', handle, archived = false } = route.params ?? {};
+  const myId = useAuthStore((s) => s.user?.id);
+  const useBackend = hasBackend && kind === 'solo' && !!peerId;
+
+  // Group / seed path.
+  const storeMessages = useChatStore((s) => s.messages[paramChatId] ?? []);
+  const storeSend = useChatStore((s) => s.sendMessage);
+
+  // Backend 1:1 path: resolve (create if needed) the chat, then load its messages.
+  const qc = useQueryClient();
+  const { data: chatId } = useQuery({
+    queryKey: ['solo-chat', peerId],
+    queryFn: () => getOrCreateSoloChat(peerId),
+    enabled: useBackend,
+  });
+  const { data: beMessages = [] } = useQuery({
+    queryKey: ['messages', chatId],
+    queryFn: () => getMessages(chatId as string),
+    enabled: useBackend && !!chatId,
+  });
+
+  // Realtime: new messages in this chat refresh the thread live.
+  useEffect(() => {
+    const client = supabase;
+    if (!useBackend || !chatId || !client) return;
+    const ch = client
+      .channel(`messages-${chatId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${chatId}` },
+        () => {
+          void qc.invalidateQueries({ queryKey: ['messages', chatId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      void client.removeChannel(ch);
+    };
+  }, [useBackend, chatId, qc]);
+
   const [text, setText] = useState('');
   const mesh = kind === 'group' && !archived ? getMeshStatus() : null;
   const openInstagram = () => handle && Linking.openURL(`https://instagram.com/${handle.replace(/^@/, '')}`);
 
-  const send = () => {
-    if (!text.trim()) return;
-    sendMessage(chatId, text.trim());
-    setText('');
+  const messages: Row[] = useBackend
+    ? beMessages.map((m) => ({ id: m.id, fromMe: m.senderId === myId, body: m.body, sender: m.senderId === myId ? undefined : name }))
+    : storeMessages;
+
+  const send = async () => {
+    const body = text.trim();
+    if (!body) return;
+    if (useBackend) {
+      if (!chatId) {
+        Alert.alert('Chat still opening', 'Give it a second to open, then send again.');
+        return;
+      }
+      setText('');
+      try {
+        await apiSendMessage(chatId, body);
+        await qc.invalidateQueries({ queryKey: ['messages', chatId] });
+      } catch (e: any) {
+        setText(body); // restore so the message isn't lost
+        Alert.alert('Message not sent', e?.message ?? 'Please try again.');
+      }
+    } else {
+      setText('');
+      storeSend(paramChatId, body);
+    }
   };
 
   return (
@@ -45,7 +108,7 @@ export function ChatRoom({ navigation, route }: any) {
             <View style={{ maxWidth: '80%', backgroundColor: m.fromMe ? t.colors.accentL3 : t.colors.surface, borderRadius: 14, borderBottomRightRadius: m.fromMe ? 4 : 14, borderBottomLeftRadius: m.fromMe ? 14 : 4, paddingVertical: 8, paddingHorizontal: 12 }}>
               <Text style={{ color: m.fromMe ? t.colors.accentD4 : t.colors.text, fontSize: t.typography.size.md }}>{m.body}</Text>
             </View>
-            {m.relayHops && <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size['2xs'], marginTop: 2 }}>Relayed via {m.relayHops} devices</Text>}
+            {m.relayHops ? <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size['2xs'], marginTop: 2 }}>Relayed via {m.relayHops} devices</Text> : null}
           </View>
         ))}
       </ScrollView>

@@ -1,5 +1,8 @@
+import { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
+import { useRealtimeSync } from '../hooks/useRealtimeSync';
 import { colors } from '../theme/tokens';
 import { OnboardingStack } from './OnboardingStack';
 import { AppStack } from './AppStack';
@@ -18,6 +21,25 @@ const navTheme = {
 
 export function RootNavigator() {
   const user = useAuthStore((s) => s.user);
+  const booting = useAuthStore((s) => s.booting);
+  const bootstrap = useAuthStore((s) => s.bootstrap);
+
+  // Restore a persisted Supabase session once on launch.
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
+
+  // Live-sync plans/profiles across teammates.
+  useRealtimeSync();
+
+  if (booting) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer theme={navTheme}>
       {user ? <AppStack /> : <OnboardingStack />}

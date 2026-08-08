@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // Supabase is used when configured via env; otherwise the app runs on the local
@@ -8,11 +9,16 @@ const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 export const hasBackend = Boolean(url && anonKey);
 
-// No AsyncStorage here: auth is simulated for now and catalog reads use the anon
-// key, so we don't persist a session. When real phone-OTP auth is wired, add
-// AsyncStorage as `auth.storage` and rebuild the dev client to link the module.
+// Real email-OTP auth: persist the session in AsyncStorage (already linked into
+// the dev build) so returning users skip onboarding, and auto-refresh the token.
+// detectSessionInUrl stays off — this is native, not web.
 export const supabase: SupabaseClient | null = hasBackend
   ? createClient(url!, anonKey!, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      auth: {
+        storage: AsyncStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
     })
   : null;

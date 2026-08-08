@@ -54,7 +54,7 @@ export function PlanDetail({ navigation, route }: any) {
           {/* Cost block */}
           <View style={[styles.cost, { backgroundColor: t.colors.sectionBg, borderRadius: t.radius.lg }]}>
             <Text style={{ color: t.colors.accentL2, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase' }}>Rough cost, split between you</Text>
-            <Text style={{ color: t.colors.accentL1, fontSize: t.typography.size['3xl'], fontWeight: '600', marginTop: 6 }}>₹{plan.costEach.toLocaleString('en-IN')} each</Text>
+            <Text style={{ color: t.colors.accentL1, fontSize: t.typography.size['3xl'], fontWeight: '600', marginTop: 6 }}>₹{(plan.costEach ?? 0).toLocaleString('en-IN')} each</Text>
             <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size.body2, marginTop: 8, lineHeight: t.typography.size.body2 * t.typography.lineHeight.relaxed }}>
               Nobody pays Kaafilla for this. You settle between yourselves in the app as you go — we only keep the ledger.
             </Text>

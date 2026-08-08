@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Alert } from 'react-native';
 import { Screen } from '../../components/layout/Screen';
 import { Chip } from '../../components/atoms/Chip';
 import { Button } from '../../components/atoms/Button';
@@ -64,9 +64,17 @@ export function TravelPrefs({ navigation }: any) {
   const answered = Object.keys(habits).length;
   const valid = trips.length >= 1 && hobbies.length >= 2 && langs.length >= 1 && answered === HABITS.length;
 
-  const create = () => {
+  const [creating, setCreating] = useState(false);
+  const create = async () => {
     patchDraft({ trips, been, languages: langs, hobbies, habits });
-    completeOnboarding(); // sets user → RootNavigator swaps to MainTabs
+    try {
+      setCreating(true);
+      await completeOnboarding(); // writes the profile to Supabase, then sets user → MainTabs
+    } catch (e: any) {
+      Alert.alert('Could not save profile', e?.message ?? 'Please try again.');
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -104,7 +112,7 @@ export function TravelPrefs({ navigation }: any) {
       </Text>
 
       <View style={{ marginTop: t.spacing[4], paddingBottom: t.spacing[4] }}>
-        <Button label="Create profile" onPress={create} disabled={!valid} />
+        <Button label={creating ? 'Creating…' : 'Create profile'} onPress={create} disabled={!valid || creating} />
       </View>
     </Screen>
   );

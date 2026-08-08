@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Image, StyleSheet, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Screen } from '../../components/layout/Screen';
 import { Button } from '../../components/atoms/Button';
@@ -20,10 +20,28 @@ export function PhotoUpload({ navigation }: any) {
   const count = photos.filter(Boolean).length;
 
   const pick = async (i: number) => {
-    // ponytail: native crop via allowsEditing stands in for the custom crop tool.
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 5], quality: 0.8 });
-    if (!res.canceled) {
-      setPhotos((p) => p.map((v, idx) => (idx === i ? res.assets[0].uri : v)));
+    try {
+      // Ask for gallery access first — a denied/undetermined permission is the
+      // usual cause of a silent blank on tap.
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Photo access needed', 'Allow photo access to add your pictures.');
+        return;
+      }
+      // allowsEditing opens a native crop; some devices/emulators have no crop
+      // activity and would blank out — fall back to no-crop if it throws.
+      let res: ImagePicker.ImagePickerResult;
+      try {
+        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 5], quality: 0.8 });
+      } catch {
+        res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+      }
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        const uri = res.assets[0].uri;
+        setPhotos((p) => p.map((v, idx) => (idx === i ? uri : v)));
+      }
+    } catch (e: any) {
+      Alert.alert('Could not open photos', e?.message ?? 'Please try again.');
     }
   };
 

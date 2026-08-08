@@ -1,23 +1,46 @@
 import { useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Header } from '../../components/molecules/Header';
 import { Input, TextArea } from '../../components/atoms/Input';
 import { Button } from '../../components/atoms/Button';
 import { useAuthStore } from '../../store/authStore';
+import { hasBackend } from '../../api/client';
+import { createPlan } from '../../api/writes';
 
 export function CreatePlan({ navigation }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const verified = useAuthStore((s) => s.isVerified);
+  const user = useAuthStore((s) => s.user);
+  const qc = useQueryClient();
   const [where, setWhere] = useState('');
   const [cost, setCost] = useState('');
   const [what, setWhat] = useState('');
+  const [posting, setPosting] = useState(false);
 
-  const post = () => {
+  const post = async () => {
     if (!verified) return navigation.navigate('VerifyGate', { gateFrom: 'host' });
-    navigation.goBack();
+    if (!hasBackend || !user) return navigation.goBack();
+    try {
+      setPosting(true);
+      await createPlan({
+        place: where.trim(),
+        costEach: Number(cost.replace(/[^\d]/g, '')) || 0,
+        note: what.trim(),
+        hostName: user.firstName,
+        hostId: user.id,
+        lead: user.lead,
+      });
+      await qc.invalidateQueries({ queryKey: ['plans'] });
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert('Could not post plan', e?.message ?? 'Please try again.');
+    } finally {
+      setPosting(false);
+    }
   };
 
   return (
@@ -43,7 +66,7 @@ export function CreatePlan({ navigation }: any) {
         </View>
 
         <View style={{ marginTop: 'auto', paddingBottom: insets.bottom + 16 }}>
-          <Button label="Post this plan" disabled={!where.trim() || !what.trim()} onPress={post} />
+          <Button label={posting ? 'Posting…' : 'Post this plan'} disabled={!where.trim() || !what.trim() || posting} onPress={post} />
           <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 8, textAlign: 'center' }}>
             Hosting needs Aadhaar verification. Your name and rating are shown to everyone who asks to join.
           </Text>

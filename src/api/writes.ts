@@ -1,0 +1,70 @@
+import { supabase } from './client';
+import type { Plan, Lead } from '../types';
+
+// Write-side API (mutations). Reads live in catalog.ts. Row-level security on the
+// server is the real gate; these just shape the request.
+
+function planId(place: string): string {
+  const slug =
+    place
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 24) || 'plan';
+  return `${slug}-${Date.now().toString(36)}`;
+}
+
+export interface NewPlanInput {
+  place: string;
+  costEach: number;
+  note: string;
+  hostName: string;
+  hostId: string;
+  lead?: Lead;
+}
+
+function rowToPlan(r: Record<string, any>): Plan {
+  return {
+    id: r.id,
+    name: r.name ?? r.place ?? '',
+    place: r.place ?? '',
+    region: r.region ?? '',
+    costEach: r.cost_each ?? 0,
+    days: r.days ?? 0,
+    month: r.month ?? '',
+    stay: r.stay ?? '',
+    groupSize: r.group_size ?? 0,
+    joined: r.joined ?? 0,
+    hostName: r.host_name ?? '',
+    hostId: r.host_id ?? '',
+    lead: (r.lead ?? 'women') as Lead,
+    hostTrips: r.host_trips ?? 0,
+    hostRating: r.host_rating ?? 0,
+    dates: (r.dates ?? 'flexible') as 'flexible' | 'fixed',
+    cities: r.cities ?? '',
+    note: r.note ?? '',
+  };
+}
+
+// Host a traveller plan. Requires a verified session (enforced by RLS too).
+export async function createPlan(input: NewPlanInput): Promise<Plan> {
+  if (!supabase) throw new Error('Backend not configured');
+  const row = {
+    id: planId(input.place),
+    name: input.place,
+    place: input.place,
+    region: '',
+    joined: 0,
+    cost_each: input.costEach || 0,
+    host_name: input.hostName,
+    host_id: input.hostId,
+    lead: input.lead ?? null,
+    host_trips: 0,
+    dates: 'flexible' as const,
+    cities: '',
+    note: input.note,
+  };
+  const { data, error } = await supabase.from('plans').insert(row).select().single();
+  if (error) throw error;
+  return rowToPlan(data as Record<string, any>);
+}

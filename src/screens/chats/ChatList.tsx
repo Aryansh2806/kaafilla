@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
@@ -8,13 +9,21 @@ import { Avatar } from '../../components/atoms/Avatar';
 import { Button } from '../../components/atoms/Button';
 import { LockGate } from '../../components/molecules/LockGate';
 import { lockGate, notes } from '../../data/copy';
+import { hasBackend } from '../../api/client';
+import { getIncoming, getSent, getAccepted, respondConnect, cancelConnect } from '../../api/social';
 
 export function ChatList({ navigation }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const verified = useAuthStore((s) => s.isVerified);
-  const { incoming, connects, accept, decline, groupState, setGroupState, cancelConnect } = useChatStore();
+  const qc = useQueryClient();
+  const { incoming: storeIncoming, connects, groupState, setGroupState } = useChatStore();
   const [tab, setTab] = useState<'chats' | 'requests'>('chats');
+
+  // Backend social data (real connects). Falls back to the seeded store off-backend.
+  const beIncoming = useQuery({ queryKey: ['incoming'], queryFn: getIncoming, enabled: hasBackend && verified });
+  const beSent = useQuery({ queryKey: ['sent'], queryFn: getSent, enabled: hasBackend && verified });
+  const beAccepted = useQuery({ queryKey: ['accepted'], queryFn: getAccepted, enabled: hasBackend && verified });
 
   if (!verified) {
     return (
@@ -24,8 +33,48 @@ export function ChatList({ navigation }: any) {
     );
   }
 
-  const accepted = Object.entries(connects).filter(([, s]) => s === 'accepted').map(([id]) => id);
-  const sent = Object.entries(connects).filter(([, s]) => s === 'sent').map(([id]) => id);
+  const incomingItems = hasBackend
+    ? beIncoming.data ?? []
+    : storeIncoming.map((r) => ({ id: r.id, fromId: r.id, name: r.name, city: r.city, note: r.note }));
+  const sentItems = hasBackend
+    ? beSent.data ?? []
+    : Object.entries(connects)
+        .filter(([, s]) => s === 'sent')
+        .map(([id]) => ({ id, toId: id, name: id[0].toUpperCase() + id.slice(1) }));
+  const acceptedItems = hasBackend
+    ? beAccepted.data ?? []
+    : Object.entries(connects)
+        .filter(([, s]) => s === 'accepted')
+        .map(([id]) => ({ connectId: id, peerId: id, name: id[0].toUpperCase() + id.slice(1), handle: '' }));
+
+  const onAccept = async (connectId: string, peerId: string, name: string, handle: string) => {
+    try {
+      await respondConnect(connectId, true);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['incoming'] }),
+        qc.invalidateQueries({ queryKey: ['accepted'] }),
+      ]);
+      navigation.navigate('ChatRoom', { peerId, name, kind: 'solo', handle: handle ? `@${handle}` : undefined });
+    } catch (e: any) {
+      Alert.alert('Could not accept', e?.message ?? 'Please try again.');
+    }
+  };
+  const onDecline = async (connectId: string) => {
+    try {
+      await respondConnect(connectId, false);
+      await qc.invalidateQueries({ queryKey: ['incoming'] });
+    } catch (e: any) {
+      Alert.alert('Could not decline', e?.message ?? 'Please try again.');
+    }
+  };
+  const onCancel = async (toId: string) => {
+    try {
+      await cancelConnect(toId);
+      await qc.invalidateQueries({ queryKey: ['sent'] });
+    } catch (e: any) {
+      Alert.alert('Could not cancel', e?.message ?? 'Please try again.');
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingTop: insets.top }}>
@@ -36,7 +85,7 @@ export function ChatList({ navigation }: any) {
           {(['chats', 'requests'] as const).map((k) => (
             <Pressable key={k} onPress={() => setTab(k)} style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: t.radius.full, backgroundColor: tab === k ? t.colors.accentL3 : t.colors.n900 }}>
               <Text style={{ color: tab === k ? t.colors.accentD4 : t.colors.textSub, fontSize: t.typography.size.body2, fontWeight: '600' }}>
-                {k === 'chats' ? 'Chats' : `Requests · ${incoming.length}`}
+                {k === 'chats' ? 'Chats' : `Requests · ${incomingItems.length}`}
               </Text>
             </Pressable>
           ))}
@@ -46,7 +95,7 @@ export function ChatList({ navigation }: any) {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {tab === 'chats' ? (
           <View style={{ marginTop: 16 }}>
-            {/* Group chat — locked → live → archived */}
+            {/* Group chat — locked → live → archived (prototype lifecycle simulation) */}
             <Pressable
               onPress={() => groupState !== 'locked' && navigation.navigate('ChatRoom', { chatId: 'group', name: 'Spiti Sep 12–17', kind: 'group', archived: groupState === 'archived' })}
               style={[styles.row, { borderBottomColor: t.colors.n900 }]}
@@ -75,7 +124,6 @@ export function ChatList({ navigation }: any) {
               {groupState === 'archived' && <Text style={{ color: t.colors.textMuted, fontSize: 16 }}>🗄</Text>}
             </Pressable>
 
-            {/* Simulate the group lifecycle */}
             {groupState === 'live' ? (
               <Pressable onPress={() => setGroupState('archived')} style={{ paddingVertical: 10 }}>
                 <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size.body2 }}>Simulate: three days after the trip ends</Text>
@@ -89,11 +137,11 @@ export function ChatList({ navigation }: any) {
               </View>
             ) : null}
 
-            {accepted.map((id) => (
-              <Pressable key={id} onPress={() => navigation.navigate('ChatRoom', { chatId: id, name: id[0].toUpperCase() + id.slice(1), kind: 'solo', handle: `@${id}` })} style={[styles.row, { borderBottomColor: t.colors.n900 }]}>
-                <Avatar name={id} size={48} />
+            {acceptedItems.map((c) => (
+              <Pressable key={c.connectId} onPress={() => navigation.navigate('ChatRoom', { peerId: c.peerId, name: c.name, kind: 'solo', handle: c.handle ? `@${c.handle}` : undefined })} style={[styles.row, { borderBottomColor: t.colors.n900 }]}>
+                <Avatar name={c.name} size={48} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={{ color: t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{id[0].toUpperCase() + id.slice(1)}</Text>
+                  <Text style={{ color: t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{c.name}</Text>
                   <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: 2 }}>Connected · say hello</Text>
                 </View>
               </Pressable>
@@ -105,13 +153,13 @@ export function ChatList({ navigation }: any) {
           </View>
         ) : (
           <View style={{ marginTop: 16 }}>
-            {incoming.length === 0 ? (
+            {incomingItems.length === 0 ? (
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
                 <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>No requests waiting</Text>
                 <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2, marginTop: 4, textAlign: 'center' }}>{notes.silentDecline}</Text>
               </View>
             ) : (
-              incoming.map((r) => (
+              incomingItems.map((r) => (
                 <View key={r.id} style={[styles.req, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Avatar name={r.name} size={40} />
@@ -122,24 +170,24 @@ export function ChatList({ navigation }: any) {
                   </View>
                   <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: 10, lineHeight: t.typography.size.body2 * t.typography.lineHeight.relaxed }}>{r.note}</Text>
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                    <View style={{ flex: 1 }}><Button label="Not this time" variant="ghost" onPress={() => decline(r.id)} /></View>
-                    <View style={{ flex: 1 }}><Button label="Accept & open chat" onPress={() => { accept(r.id); navigation.navigate('ChatRoom', { chatId: r.id, name: r.name, kind: 'solo', handle: `@${r.id}` }); }} /></View>
+                    <View style={{ flex: 1 }}><Button label="Not this time" variant="ghost" onPress={() => onDecline(r.id)} /></View>
+                    <View style={{ flex: 1 }}><Button label="Accept & open chat" onPress={() => onAccept(r.id, (r as any).fromId ?? r.id, r.name, '')} /></View>
                   </View>
                 </View>
               ))
             )}
 
-            {sent.length > 0 && (
+            {sentItems.length > 0 && (
               <View style={{ marginTop: 20 }}>
                 <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Sent by you</Text>
-                {sent.map((id) => (
-                  <View key={id} style={[styles.row, { borderBottomColor: t.colors.n900 }]}>
-                    <Avatar name={id} size={40} />
+                {sentItems.map((s) => (
+                  <View key={s.id} style={[styles.row, { borderBottomColor: t.colors.n900 }]}>
+                    <Avatar name={s.name} size={40} />
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={{ color: t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{id[0].toUpperCase() + id.slice(1)}</Text>
+                      <Text style={{ color: t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{s.name}</Text>
                       <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>Waiting · expires in 30 days</Text>
                     </View>
-                    <Pressable onPress={() => cancelConnect(id)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Cancel request to ${id}`}>
+                    <Pressable onPress={() => onCancel(s.toId)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Cancel request to ${s.name}`}>
                       <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2 }}>Cancel</Text>
                     </Pressable>
                   </View>

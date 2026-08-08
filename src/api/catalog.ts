@@ -2,13 +2,34 @@ import { supabase, hasBackend } from './client';
 import { TRIPS, PLANS, OPERATORS, REVIEWS, ITINERARIES, EXPLORE, PEOPLE } from '../data/seed';
 import type { Trip, Plan, Review, ExploreRegion, Operator, Person } from '../types';
 
-// People (travellers). Seed-backed for now — real profiles are RLS-gated to
-// verified users, wired when auth sessions exist.
+// People (travellers) = real profiles, RLS-gated: a verified user sees everyone's
+// profile, an unverified one sees only their own (per the gating matrix). Falls
+// back to seed with no backend.
+function rowToPerson(r: Record<string, unknown>): Person {
+  return {
+    id: String(r.id),
+    name: (r.first_name as string) ?? '',
+    age: (r.age as number) ?? 0,
+    city: (r.city as string) ?? '',
+    trips: 0,
+    handle: (r.instagram as string) ?? '',
+    bio: (r.bio as string) ?? '',
+    lead: ((r.lead as string) ?? 'women') as Person['lead'],
+  };
+}
+
 export async function getPeople(): Promise<Person[]> {
-  return PEOPLE;
+  if (!hasBackend) return PEOPLE;
+  const { data, error } = await supabase!.from('profiles').select('*');
+  if (error) throw error;
+  // Drop half-built rows (no first name yet) so the board only shows real people.
+  return (data ?? []).filter((r) => r.first_name).map((r) => rowToPerson(r));
 }
 export async function getPerson(id: string): Promise<Person | null> {
-  return PEOPLE.find((p) => p.id === id) ?? null;
+  if (!hasBackend) return PEOPLE.find((p) => p.id === id) ?? null;
+  const { data, error } = await supabase!.from('profiles').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? rowToPerson(data) : null;
 }
 
 // PostgREST returns snake_case columns; the app uses camelCase. Convert on read.
