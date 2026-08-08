@@ -2,12 +2,18 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Header } from '../../components/molecules/Header';
+import { useWallet } from '../../api/hooks';
 import { useWalletStore } from '../../store/walletStore';
 
 export function Wallet({ navigation }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { balance, ledger } = useWalletStore();
+  // Real wallet when the economy backend is deployed; the in-memory store is the
+  // fallback so the screen still reads sensibly before stage9 is applied.
+  const walletQ = useWallet();
+  const store = useWalletStore();
+  const balance = walletQ.isSuccess ? walletQ.data.balance : store.balance;
+  const ledger = walletQ.isSuccess ? walletQ.data.ledger : store.ledger;
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingTop: insets.top }}>

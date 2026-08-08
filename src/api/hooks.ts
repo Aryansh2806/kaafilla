@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as catalog from './catalog';
+import * as economy from './economy';
+import { hasBackend } from './client';
 
 // react-query hooks over the catalog API. Screens use these, never the raw fns.
 export const useTrips = () => useQuery({ queryKey: ['trips'], queryFn: catalog.getTrips });
@@ -19,3 +21,16 @@ export const useExploreRegion = (key: string) =>
 export const usePeople = () => useQuery({ queryKey: ['people'], queryFn: catalog.getPeople });
 export const usePerson = (id: string) =>
   useQuery({ queryKey: ['person', id], queryFn: () => catalog.getPerson(id) });
+
+// ── ₹49 economy (feature #8) ──
+// `retry: false` so that when the economy schema/function isn't deployed yet the
+// query fails fast and the screen falls back instead of hammering a 404.
+export const useWallet = () =>
+  useQuery({ queryKey: ['wallet'], queryFn: economy.getWallet, enabled: hasBackend, retry: false });
+export const useWaitlist = (tripId: string) =>
+  useQuery({
+    queryKey: ['waitlist', tripId],
+    queryFn: () => economy.getWaitlist(tripId),
+    enabled: hasBackend && !!tripId,
+    retry: false,
+  });
