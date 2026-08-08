@@ -29,6 +29,7 @@ const REGION_GAL: Record<string, string[]> = {
   karnataka: ['1507525428034-b723cf961d3e', '1519046904884-53103b34b206', '1502680390469-be75c86b636f'].map(U),
   rajasthan: ['1509316785289-025f5b846b35', '1516035069371-29a1b244cc32', '1473580044384-7ba9967e16a0'].map(U),
   kerala: ['1602216056096-3b40cc0c9944', '1593693411515-c20261bcad6e', '1502680390469-be75c86b636f'].map(U),
+  goa: ['1507525428034-b723cf961d3e', '1502680390469-be75c86b636f', '1519046904884-53103b34b206'].map(U),
 };
 
 export function heroImages(id: string, region?: string): string[] {

@@ -4,6 +4,27 @@ import type { Plan, Lead } from '../types';
 // Write-side API (mutations). Reads live in catalog.ts. Row-level security on the
 // server is the real gate; these just shape the request.
 
+// Map a free-text place ("Tirthan Valley, Himachal") to an explore region key so
+// user-created plans pick up destination hero photos. Returns '' if nothing matches.
+const REGION_KEYWORDS: Record<string, string[]> = {
+  himachal: ['himachal', 'spiti', 'kasol', 'kheerganga', 'manali', 'tirthan', 'hampta', 'kullu', 'dharamshala', 'mcleodganj', 'bir', 'shimla', 'kinnaur', 'parvati'],
+  ladakh: ['ladakh', 'leh', 'nubra', 'zanskar', 'pangong', 'kargil'],
+  uttarakhand: ['uttarakhand', 'rishikesh', 'valley of flowers', 'kedarnath', 'nainital', 'mussoorie', 'auli', 'chopta', 'dehradun', 'harsil', 'tungnath'],
+  northeast: ['meghalaya', 'shillong', 'assam', 'guwahati', 'arunachal', 'sikkim', 'gangtok', 'nagaland', 'cherrapunji', 'northeast', 'tawang', 'ziro'],
+  karnataka: ['karnataka', 'gokarna', 'coorg', 'bengaluru', 'bangalore', 'hampi', 'chikmagalur', 'mysore'],
+  rajasthan: ['rajasthan', 'jaisalmer', 'jaipur', 'udaipur', 'jodhpur', 'pushkar', 'thar', 'bikaner', 'mount abu'],
+  kerala: ['kerala', 'varkala', 'kochi', 'munnar', 'alleppey', 'wayanad', 'kovalam', 'kumarakom'],
+  goa: ['goa', 'anjuna', 'palolem', 'arambol', 'panjim', 'vagator', 'baga'],
+};
+
+export function inferRegion(place: string): string {
+  const p = place.toLowerCase();
+  for (const [region, kws] of Object.entries(REGION_KEYWORDS)) {
+    if (kws.some((k) => p.includes(k))) return region;
+  }
+  return '';
+}
+
 function planId(place: string): string {
   const slug =
     place
@@ -53,7 +74,7 @@ export async function createPlan(input: NewPlanInput): Promise<Plan> {
     id: planId(input.place),
     name: input.place,
     place: input.place,
-    region: '',
+    region: inferRegion(input.place),
     joined: 0,
     cost_each: input.costEach || 0,
     host_name: input.hostName,
