@@ -1,4 +1,5 @@
-import { Image, View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
 
 type Props = { uri?: string | null; name?: string; size?: number };
@@ -8,7 +9,15 @@ export function Avatar({ uri, name, size = 44 }: Props) {
   const t = useTheme();
   const radius = size / 2;
   if (uri) {
-    return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: radius }} />;
+    return (
+      <Image
+        source={uri}
+        style={{ width: size, height: size, borderRadius: radius, backgroundColor: t.colors.n800 }}
+        contentFit="cover"
+        transition={200}
+        cachePolicy="memory-disk"
+      />
+    );
   }
   return (
     <View

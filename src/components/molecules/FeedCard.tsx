@@ -1,4 +1,5 @@
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient as SvgLinear, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeProvider';
 import { LeadBadge, Tag } from '../atoms/Badges';
@@ -28,7 +29,7 @@ function Hero({ label, gid, uri }: { label: string; gid: string; uri?: string })
       </Svg>
       {uri ? (
         <>
-          <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={uri} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} cachePolicy="memory-disk" />
           {/* subtle scrim so badges + label stay legible over any photo */}
           <View style={[StyleSheet.absoluteFill, styles.scrim]} />
         </>

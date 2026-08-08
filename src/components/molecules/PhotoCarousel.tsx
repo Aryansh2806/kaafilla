@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Image, ScrollView, StyleSheet, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { View, ScrollView, StyleSheet, useWindowDimensions, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { Image } from 'expo-image';
 
 // Swipeable, paged photo gallery (Amazon-style product hero). Dots track the
 // active page; a top scrim keeps an overlaid back button legible.
@@ -22,7 +23,7 @@ export function PhotoCarousel({ images, height = 280 }: { images: string[]; heig
         onMomentumScrollEnd={onEnd}
       >
         {images.map((uri, i) => (
-          <Image key={i} source={{ uri }} style={{ width, height }} resizeMode="cover" />
+          <Image key={i} source={uri} style={{ width, height }} contentFit="cover" transition={250} cachePolicy="memory-disk" />
         ))}
       </ScrollView>
 
