@@ -27,7 +27,13 @@
       "expo-status-bar",
       "expo-font",
       "expo-secure-store",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-notifications",
+        {
+          "color": "#9184d9"
+        }
+      ]
     ]
   }
 }

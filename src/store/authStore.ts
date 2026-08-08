@@ -3,6 +3,7 @@ import type { Profile, VerificationStatus } from '../types';
 import type { VerificationRecord } from '../verification';
 import { hasBackend } from '../api/client';
 import { getCurrentProfile, saveProfile, signOutSupabase, markVerified } from '../api/auth';
+import { removePushToken } from '../notifications/push';
 
 // Session + onboarding state. With a backend configured, the real Supabase
 // session drives this (bootstrap on launch, DB writes on onboarding). Without
@@ -134,7 +135,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    if (hasBackend) await signOutSupabase();
+    if (hasBackend) {
+      await removePushToken(); // stop this device receiving the signed-out user's pushes
+      await signOutSupabase();
+    }
     set({
       user: null,
       isVerified: false,

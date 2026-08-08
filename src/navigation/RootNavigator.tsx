@@ -3,6 +3,8 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { usePushNotifications } from '../notifications/usePushNotifications';
+import { navigationRef } from '../notifications/navigation';
 import { colors } from '../theme/tokens';
 import { OnboardingStack } from './OnboardingStack';
 import { AppStack } from './AppStack';
@@ -32,6 +34,9 @@ export function RootNavigator() {
   // Live-sync plans/profiles across teammates.
   useRealtimeSync();
 
+  // Register this device for push + route notification taps (no-op until signed in).
+  usePushNotifications(user?.id);
+
   if (booting) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
@@ -41,7 +46,7 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       {user ? <AppStack /> : <OnboardingStack />}
     </NavigationContainer>
   );
