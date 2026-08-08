@@ -10,6 +10,8 @@ import { Button } from '../../components/atoms/Button';
 import { LeadBadge } from '../../components/atoms/Badges';
 import { RatioBar } from '../../components/atoms/Progress';
 import { Avatar } from '../../components/atoms/Avatar';
+import { PhotoCarousel } from '../../components/molecules/PhotoCarousel';
+import { heroImages } from '../../data/tripImages';
 import { gradients } from '../../theme/tokens';
 
 function Section({ title, children }: any) {
@@ -36,25 +38,35 @@ export function TripDetail({ navigation, route }: any) {
 
   const price = override?.price ?? trip.price;
   const operatorName = override?.name ?? op?.name;
+  const imgs = heroImages(id, trip.region);
   const join = () => navigation.navigate(verified ? 'Joined' : 'VerifyGate', { id, gateFrom: 'waitlist' });
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-            <Defs>
-              <SvgLinear id="td" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor={gradients.sectionGlow[0]} />
-                <Stop offset="1" stopColor={gradients.sectionGlow[2]} />
-              </SvgLinear>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#td)" />
-          </Svg>
-          <View style={{ paddingTop: insets.top, paddingHorizontal: 20 }}>
-            <Header onBack={() => navigation.goBack()} />
+        {imgs.length ? (
+          <View>
+            <PhotoCarousel images={imgs} height={280} />
+            <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, paddingHorizontal: 20 }}>
+              <Header onBack={() => navigation.goBack()} />
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.hero}>
+            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+              <Defs>
+                <SvgLinear id="td" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor={gradients.sectionGlow[0]} />
+                  <Stop offset="1" stopColor={gradients.sectionGlow[2]} />
+                </SvgLinear>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#td)" />
+            </Svg>
+            <View style={{ paddingTop: insets.top, paddingHorizontal: 20 }}>
+              <Header onBack={() => navigation.goBack()} />
+            </View>
+          </View>
+        )}
 
         <View style={{ paddingHorizontal: 20 }}>
           {override && (
