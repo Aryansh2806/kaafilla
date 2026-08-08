@@ -40,9 +40,19 @@ real `waitlist_entries` row and your live position. "Pay ₹49 for priority" fli
 "If you're not" → your ₹49 lands in `wallets`/`wallet_ledger` and shows on the
 Wallet screen. Deploy logs show each action's result.
 
-## Not yet wired
-- **host-charge**: the action exists, but the plan-join/accept flow (HostRequests)
-  is still a client stub — wire `hostCharge(planId)` at the point a plan gets its
-  first real accepted join once that flow is server-backed.
+## Plan-join flow (host-charge trigger) — apply `stage10-plan-joins.sql`
+Travellers ask to join a plan; the host accepts/declines. Accepting runs the
+`respond-join` economy action, which bumps the plan's `joined` count and levies
+the ₹49 host charge on the **first** accepted join — all server-side (only the
+host can respond; verified in the function, not just RLS). Apply
+`stage10-plan-joins.sql` and re-deploy the `economy` function (it gained the
+`respond-join` action). PlanDetail's "Ask to join" and HostRequests then use real
+data; pre-deploy they fall back (optimistic "request sent" / the simulator list).
+
+Verify: as traveller A, ask to join B's plan → a `plan_joins` row appears; as host
+B, HostRequests lists it → Accept flips it to `accepted`, `plans.joined` +1, and on
+the first accept `plans.host_charged` → true (the ₹49). A 1:1 chat opens.
+
+## Still demo-only
 - **call-seat** is traveller-triggered here (demo). In production an operator/admin
   calls the top of the queue; the 24h forfeit is already automatic via pg_cron.

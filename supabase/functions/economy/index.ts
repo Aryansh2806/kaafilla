@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     const { data: prof } = await admin.from('profiles').select('is_verified').eq('id', uid).maybeSingle();
     if (!prof?.is_verified) return json({ error: 'verification required' }, 403);
 
-    const { action, tripId, planId, source } = await req.json();
+    const { action, tripId, planId, source, requestId, accept } = await req.json();
     const now = new Date().toISOString();
 
     switch (action) {
@@ -160,6 +160,52 @@ Deno.serve(async (req) => {
         if (plan.host_charged) return json({ ok: true, charged: false });
         await admin.from('plans').update({ host_charged: true }).eq('id', planId);
         return json({ ok: true, charged: true, amount: PRIORITY_FEE });
+      }
+
+      case 'respond-join': {
+        // The host accepts/declines a join request. Accepting bumps the plan's
+        // joined count and levies the ₹49 host charge on the FIRST accepted join.
+        // Only the plan's host may respond (verified here, not just via RLS).
+        if (!requestId) return json({ error: 'requestId required' }, 400);
+        const { data: reqRow } = await admin.from('plan_joins').select('*').eq('id', requestId).maybeSingle();
+        if (!reqRow) return json({ error: 'no such request' }, 400);
+        const { data: plan } = await admin
+          .from('plans')
+          .select('host_id, joined, host_charged')
+          .eq('id', reqRow.plan_id)
+          .maybeSingle();
+        if (!plan) return json({ error: 'no such plan' }, 400);
+        if (plan.host_id !== uid) return json({ error: 'not your plan' }, 403);
+        if (reqRow.status !== 'pending') return json({ ok: true, request: reqRow }); // idempotent
+
+        if (!accept) {
+          const { data: updated } = await admin
+            .from('plan_joins')
+            .update({ status: 'declined' })
+            .eq('id', requestId)
+            .select()
+            .single();
+          return json({ ok: true, accepted: false, request: updated });
+        }
+
+        const firstJoin = !plan.host_charged;
+        const patch: Record<string, unknown> = { joined: (plan.joined ?? 0) + 1 };
+        if (firstJoin) patch.host_charged = true; // ₹49 host charge, once
+        await admin.from('plans').update(patch).eq('id', reqRow.plan_id);
+        const { data: updated } = await admin
+          .from('plan_joins')
+          .update({ status: 'accepted' })
+          .eq('id', requestId)
+          .select()
+          .single();
+        return json({
+          ok: true,
+          accepted: true,
+          request: updated,
+          travellerId: reqRow.traveller_id,
+          hostCharged: firstJoin,
+          amount: firstJoin ? PRIORITY_FEE : 0,
+        });
       }
 
       default:

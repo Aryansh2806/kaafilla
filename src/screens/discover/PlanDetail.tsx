@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../theme/ThemeProvider';
-import { usePlan, usePlans } from '../../api/hooks';
+import { usePlan, usePlans, useMyJoinStatus } from '../../api/hooks';
+import { askToJoin } from '../../api/plans';
 import { useAuthStore } from '../../store/authStore';
 import { Header } from '../../components/molecules/Header';
 import { Button } from '../../components/atoms/Button';
@@ -71,14 +73,24 @@ export function PlanDetail({ navigation, route }: any) {
   const id = route.params?.id ?? 'tirthan';
   const { data: plan } = usePlan(id);
   const verified = useAuthStore((s) => s.isVerified);
-  const [asked, setAsked] = useState(false);
+  const qc = useQueryClient();
+  const joinStatus = useMyJoinStatus(id);
+  const [asked, setAsked] = useState(false); // optimistic, so it works pre-deploy too
 
   if (!plan) return <View style={{ flex: 1, backgroundColor: t.colors.bg }} />;
 
   const imgs = galleryFor(plan);
-  const ask = () => {
+  const accepted = joinStatus.data === 'accepted';
+  const requested = accepted || asked || joinStatus.data === 'pending';
+  const ask = async () => {
     if (!verified) return navigation.navigate('VerifyGate', { id, gateFrom: 'ask' });
-    setAsked(true);
+    setAsked(true); // optimistic
+    try {
+      await askToJoin(id);
+      await qc.invalidateQueries({ queryKey: ['joinStatus', id] });
+    } catch {
+      // economy/plan_joins not deployed yet → keep the optimistic "sent" state
+    }
   };
 
   return (
@@ -143,7 +155,12 @@ export function PlanDetail({ navigation, route }: any) {
       </ScrollView>
 
       <View style={[styles.cta, { backgroundColor: t.colors.bg, borderTopColor: t.colors.n800, paddingBottom: insets.bottom + 12 }]}>
-        {asked ? (
+        {accepted ? (
+          <View>
+            <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size.md, fontWeight: '600' }}>✓ {plan.hostName} said yes — you’re in</Text>
+            <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2, marginTop: 2 }}>Your chat with {plan.hostName} is in Chats.</Text>
+          </View>
+        ) : requested ? (
           <View>
             <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size.md, fontWeight: '600' }}>● Request sent to {plan.hostName}</Text>
             <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2, marginTop: 2 }}>You’ll see their answer in Chats.</Text>

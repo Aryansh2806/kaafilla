@@ -10,6 +10,7 @@ const WATCH: { table: string; keys: string[] }[] = [
   { table: 'plans', keys: ['plans'] },
   { table: 'profiles', keys: ['people'] },
   { table: 'connects', keys: ['incoming', 'sent', 'accepted', 'connect'] },
+  { table: 'plan_joins', keys: ['hostRequests', 'joinStatus'] },
 ];
 
 export function useRealtimeSync(): void {

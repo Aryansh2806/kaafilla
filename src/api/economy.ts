@@ -40,7 +40,7 @@ async function myId(): Promise<string | null> {
   return session?.user.id ?? null;
 }
 
-type Action = 'join' | 'buy-priority' | 'call-seat' | 'pay-seat' | 'finalize-batch' | 'host-charge';
+type Action = 'join' | 'buy-priority' | 'call-seat' | 'pay-seat' | 'finalize-batch' | 'host-charge' | 'respond-join';
 
 // Invoke an economy action; surfaces the server's error message when it 4xx/5xx's.
 export async function economyAction(action: Action, payload: Record<string, unknown>): Promise<any> {

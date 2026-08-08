@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as catalog from './catalog';
 import * as economy from './economy';
+import * as plans from './plans';
 import { hasBackend } from './client';
 
 // react-query hooks over the catalog API. Screens use these, never the raw fns.
@@ -34,3 +35,9 @@ export const useWaitlist = (tripId: string) =>
     enabled: hasBackend && !!tripId,
     retry: false,
   });
+
+// ── plan-join flow (feature #8 host-charge trigger) ──
+export const useMyJoinStatus = (planId: string) =>
+  useQuery({ queryKey: ['joinStatus', planId], queryFn: () => plans.getMyJoinStatus(planId), enabled: hasBackend && !!planId, retry: false });
+export const useHostRequests = () =>
+  useQuery({ queryKey: ['hostRequests'], queryFn: plans.getHostRequests, enabled: hasBackend, retry: false });
