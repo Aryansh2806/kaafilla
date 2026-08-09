@@ -12,6 +12,8 @@ import {
   startMesh,
   stopMesh,
   sendOverMesh,
+  joinChannel,
+  leaveChannel,
   addMeshMessageListener,
   addMeshStateListener,
   type MeshState,
@@ -29,6 +31,8 @@ export function MeshDebug({ navigation }: any) {
   const [state, setState] = useState<MeshState>(getMeshState());
   const [on, setOn] = useState(false);
   const [text, setText] = useState('');
+  const [secret, setSecret] = useState('');
+  const [joined, setJoined] = useState(false);
   const [log, setLog] = useState<{ id: string; who: string; body: string }[]>([]);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -61,11 +65,21 @@ export function MeshDebug({ navigation }: any) {
     setOn(false);
     setState(getMeshState());
   };
+  const joinCh = async () => {
+    const s = secret.trim();
+    if (!s) return;
+    await joinChannel(TEST_CHAT, s);
+    setJoined(true);
+  };
+  const leaveCh = async () => {
+    await leaveChannel(TEST_CHAT);
+    setJoined(false);
+  };
   const broadcast = async () => {
     const body = text.trim();
     if (!body) return;
-    await sendOverMesh(TEST_CHAT, rid(), body);
-    setLog((l) => [{ id: rid(), who: 'me', body }, ...l].slice(0, 50));
+    await sendOverMesh(TEST_CHAT, rid(), body); // native encrypts if a channel is joined
+    setLog((l) => [{ id: rid(), who: joined ? 'me🔒' : 'me', body }, ...l].slice(0, 50));
     setText('');
   };
 
@@ -94,6 +108,20 @@ export function MeshDebug({ navigation }: any) {
           ) : (
             <Button label="Enable Bluetooth mesh" onPress={enable} />
           )}
+        </View>
+
+        <View style={{ marginTop: 16, gap: 10 }}>
+          <Input label="Channel passphrase (optional)" value={secret} onChangeText={setSecret} placeholder="same word on both phones" autoCapitalize="none" />
+          {joined ? (
+            <Button label="Leave channel (broadcast in the clear)" variant="ghost" onPress={leaveCh} />
+          ) : (
+            <Button label="Join encrypted channel" variant="ghost" disabled={!secret.trim()} onPress={joinCh} />
+          )}
+          <Text style={{ color: joined ? t.colors.success : t.colors.textMuted, fontSize: t.typography.size.xs }}>
+            {joined
+              ? '🔒 Messages are encrypted — only phones with the same passphrase can read them.'
+              : 'No channel joined — broadcasts are plaintext to every mesh peer.'}
+          </Text>
         </View>
 
         <View style={{ marginTop: 16, gap: 10 }}>

@@ -51,16 +51,7 @@ class KaafillaMeshModule : Module() {
     AsyncFunction("initIdentity") { ensureIdentity().toHex() }
 
     AsyncFunction("start") {
-      ensureIdentity()
-      if (service == null) {
-        service = MeshService(
-          context,
-          senderId,
-          onMessage = { payload, fromHex -> emitMessage(payload, fromHex) },
-          onStateChanged = { emitState() },
-        )
-      }
-      service?.start()
+      ensureService().start()
       emitState()
     }
 
@@ -71,28 +62,37 @@ class KaafillaMeshModule : Module() {
 
     Function("getState") { stateMap() }
 
-    // Phase 3: register/unregister a chat's channel key (scoping).
-    AsyncFunction("joinChannel") { _: String, _: String -> }
-    AsyncFunction("leaveChannel") { _: String -> }
+    // Register/unregister a chat's channel key (scoping). `secret` is a shared
+    // string all members hold; the 32-byte key is SHA-256(secret). Works before
+    // start() too — the service persists channel keys across start/stop.
+    AsyncFunction("joinChannel") { chatId: String, secret: String -> ensureService().joinChannel(chatId, secret) }
+    AsyncFunction("leaveChannel") { chatId: String -> service?.leaveChannel(chatId) }
 
     AsyncFunction("sendMessage") { chatId: String, clientId: String, body: String ->
-      val framed = "$chatId\n$clientId\n$body".toByteArray(Charsets.UTF_8)
-      service?.send(framed)
+      ensureService().send(chatId, clientId, body)
     }
   }
 
-  private fun emitMessage(payload: ByteArray, fromHex: String) {
-    val parts = String(payload, Charsets.UTF_8).split("\n", limit = 3)
-    sendEvent(
-      "onMessage",
-      mapOf(
-        "chatId" to (parts.getOrNull(0) ?: ""),
-        "clientId" to (parts.getOrNull(1) ?: ""),
-        "senderMeshId" to fromHex,
-        "body" to (parts.getOrNull(2) ?: ""),
-        "sentAt" to 0.0,
-      ),
-    )
+  // The mesh node lives for the whole app session; start()/stop() only toggle BLE.
+  private fun ensureService(): MeshService {
+    ensureIdentity()
+    return service ?: MeshService(
+      context,
+      senderId,
+      onMessage = { chatId, clientId, fromHex, body ->
+        sendEvent(
+          "onMessage",
+          mapOf(
+            "chatId" to chatId,
+            "clientId" to clientId,
+            "senderMeshId" to fromHex,
+            "body" to body,
+            "sentAt" to 0.0,
+          ),
+        )
+      },
+      onStateChanged = { emitState() },
+    ).also { service = it }
   }
 
   private fun stateMap(): Map<String, Any> {

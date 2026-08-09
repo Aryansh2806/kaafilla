@@ -71,8 +71,10 @@ export async function startMesh(): Promise<void> {
 export async function stopMesh(): Promise<void> {
   if (Native) try { await Native.stop(); } catch { /* inert */ }
 }
-export async function joinChannel(chatId: string, keyBase64: string): Promise<void> {
-  if (Native) try { await Native.joinChannel(chatId, keyBase64); } catch { /* inert */ }
+// `secret` is a member-only shared string (a per-chat key in real use, a passphrase
+// for the dev test); the channel key is SHA-256(secret). Only members can decrypt.
+export async function joinChannel(chatId: string, secret: string): Promise<void> {
+  if (Native) try { await Native.joinChannel(chatId, secret); } catch { /* inert */ }
 }
 export async function leaveChannel(chatId: string): Promise<void> {
   if (Native) try { await Native.leaveChannel(chatId); } catch { /* inert */ }

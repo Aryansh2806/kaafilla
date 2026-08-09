@@ -4,7 +4,8 @@ import java.security.SecureRandom
 
 object PacketType {
   const val ANNOUNCE: Byte = 1
-  const val MESSAGE: Byte = 2
+  const val MESSAGE: Byte = 2 // plaintext (dev/unscoped), payload "chatId\nclientId\nbody"
+  const val CHANNEL: Byte = 3 // AES-GCM encrypted for a channel; payload = nonce||ciphertext
 }
 
 // Wire format (Phase 2, plaintext — encryption arrives in Phase 3):

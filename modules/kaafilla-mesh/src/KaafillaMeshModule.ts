@@ -9,8 +9,9 @@ declare class KaafillaMeshModule extends NativeModule<KaafillaMeshModuleEvents> 
   start(): Promise<void>;
   stop(): Promise<void>;
   getState(): MeshState;
-  // Join a chat's mesh channel with a member-only symmetric key (base64).
-  joinChannel(chatId: string, keyBase64: string): Promise<void>;
+  // Join a chat's mesh channel with a member-only shared secret. The 32-byte
+  // channel key is SHA-256(secret); all members pass the same secret.
+  joinChannel(chatId: string, secret: string): Promise<void>;
   leaveChannel(chatId: string): Promise<void>;
   sendMessage(chatId: string, clientId: string, body: string): Promise<void>;
 }
