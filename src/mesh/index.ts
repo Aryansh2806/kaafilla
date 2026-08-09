@@ -1,3 +1,4 @@
+import { Platform, PermissionsAndroid } from 'react-native';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { EventSubscription } from 'expo-modules-core';
 import type { MeshState, MeshMessagePayload } from '../../modules/kaafilla-mesh/src/KaafillaMesh.types';
@@ -32,6 +33,27 @@ export interface MeshStatus {
 export function getMeshStatus(): MeshStatus {
   const s = getMeshState();
   return { online: false, hops: s.peers };
+}
+
+// Runtime BLE permissions. Android 12+ needs SCAN/ADVERTISE/CONNECT; ≤11 needs
+// fine location to scan. Call this before startMesh().
+export async function requestMeshPermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  const api = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
+  const perms =
+    api >= 31
+      ? [
+          'android.permission.BLUETOOTH_SCAN',
+          'android.permission.BLUETOOTH_ADVERTISE',
+          'android.permission.BLUETOOTH_CONNECT',
+        ]
+      : ['android.permission.ACCESS_FINE_LOCATION'];
+  try {
+    const res = (await PermissionsAndroid.requestMultiple(perms as any)) as Record<string, string>;
+    return perms.every((p) => res[p] === PermissionsAndroid.RESULTS.GRANTED);
+  } catch {
+    return false;
+  }
 }
 
 // ── real transport API (no-ops until the native module ships in a rebuild) ──

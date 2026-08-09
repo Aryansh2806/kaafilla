@@ -22,6 +22,7 @@ import { Wallet } from '../screens/profile/Wallet';
 import { TripHistory } from '../screens/profile/TripHistory';
 import { MyTrips } from '../screens/profile/MyTrips';
 import { Activity } from '../screens/profile/Activity';
+import { MeshDebug } from '../screens/profile/MeshDebug';
 import { HostRequests } from '../screens/hosting/HostRequests';
 
 const screenOptions = {
@@ -83,6 +84,7 @@ export function ProfileStack() {
       <ProfileNav.Screen name="TripHistory" component={TripHistory} />
       <ProfileNav.Screen name="MyTrips" component={MyTrips} />
       <ProfileNav.Screen name="Activity" component={Activity} />
+      <ProfileNav.Screen name="MeshDebug" component={MeshDebug} />
     </ProfileNav.Navigator>
   );
 }

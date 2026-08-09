@@ -89,8 +89,9 @@ export function MyProfile({ navigation }: any) {
           </View>
         ))}
 
-        <View style={{ marginTop: 16 }}>
+        <View style={{ marginTop: 16, gap: 10 }}>
           <Row title="Safety" sub="Handle visibility, blocked travellers, trip check-in" onPress={() => navigation.navigate('Safety')} />
+          <Row title="Bluetooth mesh (dev)" sub="Offline chat over BLE — test across two phones" onPress={() => navigation.navigate('MeshDebug')} />
         </View>
       </ScrollView>
     </View>
