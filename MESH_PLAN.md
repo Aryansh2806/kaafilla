@@ -70,22 +70,32 @@ advertise)** so it can relay. Permissions declared in the module manifest
 
 ## Phases
 
-1. **Bridge + scaffold** ✅ (this commit) — Expo local module, permissions, guarded
-   `src/mesh` seam, inert until rebuild. `getState().supported === false` for now.
-2. **BLE transport** — central+peripheral discovery, packet codec, TTL relay,
-   dedup, fragmentation, foreground service. Two devices see each other + exchange
-   plaintext test packets.
-3. **Scoping + crypto** — identity binding, per-chat keys, Noise 1:1 → only chat
-   members decrypt.
-4. **Reconciliation** — Supabase online path + `clientId` dedup + offline flush;
-   ChatRoom/ChatList send via mesh when offline; real banner (peers/hops).
-5. **UX + hardening** — nearby-permission prompt, Safety mesh toggle, battery/
-   background tuning.
+1. **Bridge + scaffold** ✅ — Expo local module (`modules/kaafilla-mesh`),
+   permissions, guarded `src/mesh` seam, inert until rebuild.
+2. **BLE transport** ✅ — central+peripheral discovery, `Packet` codec, TTL relay,
+   dedup. Dev screen (You → Bluetooth mesh) enables mesh + broadcasts test packets.
+3. **Scoping + crypto** ✅ — per-chat symmetric keys (SHA-256 of a shared secret),
+   AES-256-GCM (`CHANNEL` packets); only key holders decrypt, others relay opaque.
+4. **Reconciliation** ✅ — `messages.client_id` cross-transport dedup + offline
+   flush; 1:1 ChatRoom joins the chat's channel, sends over Supabase **and** mesh,
+   merges/dedupes; `chat_mesh_keys` distributes the per-chat secret (stage11).
+5. **Background service** ✅ — `MeshForegroundService` keeps BLE relaying while
+   backgrounded (ongoing notification); ref-counted acquire/release so BLE runs
+   only while a chat/panel needs it. `POST_NOTIFICATIONS` on Android 13+.
+
+### Optional / deferred enhancements
+- **Noise XX 1:1** for forward secrecy — symmetric channel keys already give
+  confidentiality + scoping; Noise adds an interactive handshake layer.
+- **MTU fragmentation** for messages over the BLE link MTU — codec is ready, not wired.
+- **Detached-service BLE** so relay survives a full app swipe-away (today it
+  survives backgrounding, not swipe-kill).
+- **iOS** — parallel Swift module (stricter background-BLE limits).
 
 ## Constraints / testing
 
 - Native + rebuild required (`npx expo run:android`, JDK 17) — no JS hot-reload for
-  the Kotlin. Expo Go won't work; the dev build already does.
+  the Kotlin. JS-only phases (4) hot-reload. Expo Go won't work; the dev build does.
 - **Two physical BLE devices** to test — emulators have no Bluetooth.
-- Android 12+ needs the runtime BLE permission prompt; background relay needs the
-  foreground service. iOS (later) has stricter background-BLE limits.
+- Android 12+ needs the runtime BLE permission prompt; ≤11 uses location. Background
+  relay needs the foreground service. iOS (later) has stricter background-BLE limits.
+- **stage11-mesh-chat.sql** must be applied for phase-4 chat scoping/dedup to work.
