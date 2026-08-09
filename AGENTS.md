@@ -30,8 +30,32 @@ about layout, copy, or a state, open the prototype and match it.
 
 ## Getting started (new developer)
 
+> ### ⚠️ Team setup — the app needs `.env`, or you'll see stale data
+>
+> This project runs against a **hosted Supabase** (see CLAUDE.md), and the app
+> only talks to it when `.env` provides the URL + anon key. **`.env` is git-ignored,
+> so `git pull` does NOT give it to you.** Without it, `hasBackend` is `false` and
+> the app silently falls back to the bundled snapshot in `src/data/seed.ts` — so
+> **operators/trips/plans added on the live backend won't appear** (you'll see only
+> the original seed catalog). This is the #1 "my data isn't updating" cause.
+>
+> **Fix (each developer, once):**
+> ```bash
+> cp .env.example .env            # Windows: copy .env.example .env
+> # paste the real hosted URL + anon key from the team lead into .env
+> npx expo start -c               # restart the bundler with a clean cache
+> ```
+> - `EXPO_PUBLIC_*` vars are **inlined at bundle time**, not read at runtime — you
+>   MUST restart Metro after editing `.env` (rebuild for standalone/release builds).
+> - Never commit `.env` (the ignore is correct — secrets stay out of Git; share the
+>   values out-of-band).
+> - Quick check: log `hasBackend` in `src/api/client.ts` — `false` = running on seed.
+
 The app code is cross-platform. Only the native build tooling differs by OS:
 **iOS needs macOS/Xcode; on Windows/Linux use Android.**
+
+The steps below describe the **local Supabase** (Docker) alternative; most of the
+team uses the hosted project above and can skip to step 4 after creating `.env`.
 
 ```bash
 # 1. Install JS deps
