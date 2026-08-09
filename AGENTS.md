@@ -42,13 +42,12 @@ about layout, copy, or a state, open the prototype and match it.
 > **Fix (each developer, once):**
 > ```bash
 > cp .env.example .env            # Windows: copy .env.example .env
-> # paste the real hosted URL + anon key from the team lead into .env
 > npx expo start -c               # restart the bundler with a clean cache
 > ```
+> `.env.example` already carries the hosted URL + anon (publishable) key, so this is
+> zero-config — no values to paste.
 > - `EXPO_PUBLIC_*` vars are **inlined at bundle time**, not read at runtime — you
 >   MUST restart Metro after editing `.env` (rebuild for standalone/release builds).
-> - Never commit `.env` (the ignore is correct — secrets stay out of Git; share the
->   values out-of-band).
 > - Quick check: log `hasBackend` in `src/api/client.ts` — `false` = running on seed.
 
 The app code is cross-platform. Only the native build tooling differs by OS:
