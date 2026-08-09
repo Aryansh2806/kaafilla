@@ -15,7 +15,16 @@
   <!-- Foreground service so the mesh keeps relaying while the app is backgrounded. -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+  <!-- Ongoing "mesh active" notification (runtime-prompted on Android 13+). -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
   <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+
+  <application>
+    <service
+      android:name="expo.modules.kaafillamesh.MeshForegroundService"
+      android:exported="false"
+      android:foregroundServiceType="connectedDevice" />
+  </application>
 
 </manifest>

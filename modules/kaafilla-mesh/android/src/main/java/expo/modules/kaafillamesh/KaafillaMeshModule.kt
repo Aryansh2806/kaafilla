@@ -52,11 +52,14 @@ class KaafillaMeshModule : Module() {
 
     AsyncFunction("start") {
       ensureService().start()
+      // Keep the process foreground so BLE keeps relaying when backgrounded.
+      try { MeshForegroundService.start(context) } catch (_: Exception) {}
       emitState()
     }
 
     AsyncFunction("stop") {
       service?.stop()
+      try { MeshForegroundService.stop(context) } catch (_: Exception) {}
       emitState()
     }
 

@@ -48,9 +48,13 @@ export async function requestMeshPermissions(): Promise<boolean> {
           'android.permission.BLUETOOTH_CONNECT',
         ]
       : ['android.permission.ACCESS_FINE_LOCATION'];
+  // The mesh foreground service posts an ongoing notification (Android 13+ gates it).
+  if (api >= 33) perms.push('android.permission.POST_NOTIFICATIONS');
   try {
     const res = (await PermissionsAndroid.requestMultiple(perms as any)) as Record<string, string>;
-    return perms.every((p) => res[p] === PermissionsAndroid.RESULTS.GRANTED);
+    // POST_NOTIFICATIONS being denied shouldn't block the mesh — only the BLE perms must pass.
+    const required = perms.filter((p) => p !== 'android.permission.POST_NOTIFICATIONS');
+    return required.every((p) => res[p] === PermissionsAndroid.RESULTS.GRANTED);
   } catch {
     return false;
   }
