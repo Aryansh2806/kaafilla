@@ -71,6 +71,18 @@ export async function startMesh(): Promise<void> {
 export async function stopMesh(): Promise<void> {
   if (Native) try { await Native.stop(); } catch { /* inert */ }
 }
+
+// Ref-counted lifecycle so BLE runs only while ≥1 screen needs it (e.g. an open
+// ChatRoom): start on the first acquire, stop on the last release.
+let meshRefs = 0;
+export async function acquireMesh(): Promise<void> {
+  meshRefs += 1;
+  if (meshRefs === 1) await startMesh();
+}
+export async function releaseMesh(): Promise<void> {
+  meshRefs = Math.max(0, meshRefs - 1);
+  if (meshRefs === 0) await stopMesh();
+}
 // `secret` is a member-only shared string (a per-chat key in real use, a passphrase
 // for the dev test); the channel key is SHA-256(secret). Only members can decrypt.
 export async function joinChannel(chatId: string, secret: string): Promise<void> {

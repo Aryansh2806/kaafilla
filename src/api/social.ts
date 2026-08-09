@@ -37,7 +37,7 @@ export type ConnStatus = 'none' | 'sent' | 'accepted' | 'incoming';
 export interface IncomingConnect { id: string; fromId: string; name: string; city: string; note: string }
 export interface SentConnect { id: string; toId: string; name: string }
 export interface AcceptedConnect { connectId: string; peerId: string; name: string; handle: string }
-export interface Msg { id: string; senderId: string; body: string; createdAt: string }
+export interface Msg { id: string; senderId: string; body: string; createdAt: string; clientId?: string }
 
 export async function sendConnect(toId: string, note?: string): Promise<void> {
   if (!supabase) throw new Error('Backend not configured');
@@ -160,18 +160,35 @@ export async function getOrCreateSoloChat(peerId: string): Promise<string> {
 
 export async function getMessages(chatId: string): Promise<Msg[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase
-    .from('messages')
-    .select('id,sender_id,body,created_at')
-    .eq('chat_id', chatId)
-    .order('created_at');
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((r) => ({ id: r.id, senderId: r.sender_id, body: r.body, createdAt: r.created_at }));
+  // Prefer client_id (stage11); fall back if the column isn't there yet so chats
+  // never break before the migration is applied.
+  let rows: { data: any[] | null; error: any } = await supabase.from('messages').select('id,sender_id,body,created_at,client_id').eq('chat_id', chatId).order('created_at');
+  if (rows.error) rows = await supabase.from('messages').select('id,sender_id,body,created_at').eq('chat_id', chatId).order('created_at');
+  if (rows.error) throw rows.error;
+  return ((rows.data ?? []) as any[]).map((r) => ({ id: r.id, senderId: r.sender_id, body: r.body, createdAt: r.created_at, clientId: r.client_id ?? undefined }));
 }
 
-export async function sendMessage(chatId: string, body: string): Promise<void> {
+export async function sendMessage(chatId: string, body: string, clientId?: string): Promise<void> {
   if (!supabase) throw new Error('Backend not configured');
   const me = await uid();
-  const { error } = await supabase.from('messages').insert({ chat_id: chatId, sender_id: me, body });
-  if (error) throw error;
+  const row: Record<string, unknown> = { chat_id: chatId, sender_id: me, body };
+  if (clientId) row.client_id = clientId;
+  let res = await supabase.from('messages').insert(row);
+  // Fall back without client_id if the column isn't there yet (pre-stage11).
+  if (res.error && clientId) res = await supabase.from('messages').insert({ chat_id: chatId, sender_id: me, body });
+  if (res.error) throw res.error;
+}
+
+// The chat's shared mesh secret (members-only). Seeds one if absent; all members
+// converge on the first-written value, so they derive the same channel key.
+export async function getOrCreateMeshSecret(chatId: string): Promise<string | null> {
+  if (!supabase) return null;
+  const existing = await supabase.from('chat_mesh_keys').select('secret').eq('chat_id', chatId).maybeSingle();
+  if (existing.error) return null; // table not ready (pre-stage11) → mesh channel unavailable
+  if (existing.data?.secret) return existing.data.secret;
+  const secret = uuidv4() + uuidv4(); // random shared secret; key = SHA-256(secret) natively
+  const up = await supabase.from('chat_mesh_keys').upsert({ chat_id: chatId, secret }, { onConflict: 'chat_id', ignoreDuplicates: true });
+  if (up.error) return null;
+  const after = await supabase.from('chat_mesh_keys').select('secret').eq('chat_id', chatId).maybeSingle();
+  return after.data?.secret ?? null;
 }

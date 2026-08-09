@@ -6,11 +6,16 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { Header } from '../../components/molecules/Header';
 import { useChatStore } from '../../store/chatStore';
 import { useAuthStore } from '../../store/authStore';
-import { getMeshStatus } from '../../mesh';
+import { getMeshStatus, getMeshState, requestMeshPermissions, acquireMesh, releaseMesh, joinChannel, leaveChannel, sendOverMesh, addMeshMessageListener } from '../../mesh';
 import { hasBackend, supabase } from '../../api/client';
-import { getOrCreateSoloChat, getMessages, sendMessage as apiSendMessage } from '../../api/social';
+import { getOrCreateSoloChat, getMessages, getOrCreateMeshSecret, sendMessage as apiSendMessage } from '../../api/social';
 
 type Row = { id: string; fromMe: boolean; body: string; sender?: string; relayHops?: number };
+// Locally-known messages (optimistic sends + mesh-received) keyed by clientId,
+// merged with the Supabase thread and deduped so nothing shows twice.
+type Extra = { clientId: string; fromMe: boolean; body: string; sender?: string; needsPersist: boolean };
+
+const rid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 export function ChatRoom({ navigation, route }: any) {
   const t = useTheme();
@@ -36,6 +41,9 @@ export function ChatRoom({ navigation, route }: any) {
     enabled: useBackend && !!chatId,
   });
 
+  const [extra, setExtra] = useState<Extra[]>([]);
+  const [meshPeers, setMeshPeers] = useState(0);
+
   // Realtime: new messages in this chat refresh the thread live.
   useEffect(() => {
     const client = supabase;
@@ -55,12 +63,59 @@ export function ChatRoom({ navigation, route }: any) {
     };
   }, [useBackend, chatId, qc]);
 
+  // Mesh: while this 1:1 chat is open, run BLE, join its member-only channel, and
+  // surface messages that arrive over the mesh. Cleans up on leave.
+  useEffect(() => {
+    if (!useBackend || !chatId) return;
+    let alive = true;
+    let joined = false;
+    (async () => {
+      const secret = await getOrCreateMeshSecret(chatId as string);
+      if (!alive || !secret) return;
+      await requestMeshPermissions();
+      await joinChannel(chatId as string, secret);
+      await acquireMesh();
+      joined = true;
+    })();
+    const sub = addMeshMessageListener((m) => {
+      if (m.chatId !== chatId) return;
+      setExtra((prev) => (prev.some((e) => e.clientId === m.clientId) ? prev : [...prev, { clientId: m.clientId || rid(), fromMe: false, body: m.body, sender: name, needsPersist: false }]));
+    });
+    const poll = setInterval(() => {
+      setMeshPeers(getMeshState().peers);
+      // Best-effort reconnect flush: retry persisting anything that failed offline.
+      setExtra((prev) => {
+        prev.filter((e) => e.needsPersist).forEach((e) => {
+          apiSendMessage(chatId as string, e.body, e.clientId)
+            .then(() => {
+              setExtra((cur) => cur.map((x) => (x.clientId === e.clientId ? { ...x, needsPersist: false } : x)));
+              void qc.invalidateQueries({ queryKey: ['messages', chatId] });
+            })
+            .catch(() => {});
+        });
+        return prev;
+      });
+    }, 3000);
+    return () => {
+      alive = false;
+      sub?.remove();
+      clearInterval(poll);
+      if (joined) void leaveChannel(chatId as string);
+      void releaseMesh();
+    };
+  }, [useBackend, chatId, name, qc]);
+
   const [text, setText] = useState('');
-  const mesh = kind === 'group' && !archived ? getMeshStatus() : null;
+  const groupMesh = kind === 'group' && !archived ? getMeshStatus() : null;
   const openInstagram = () => handle && Linking.openURL(`https://instagram.com/${handle.replace(/^@/, '')}`);
 
+  // Merge Supabase thread + local (mesh/optimistic), deduped by clientId.
+  const beClientIds = new Set(beMessages.map((m) => m.clientId).filter(Boolean) as string[]);
   const messages: Row[] = useBackend
-    ? beMessages.map((m) => ({ id: m.id, fromMe: m.senderId === myId, body: m.body, sender: m.senderId === myId ? undefined : name }))
+    ? [
+        ...beMessages.map((m) => ({ id: m.id, fromMe: m.senderId === myId, body: m.body, sender: m.senderId === myId ? undefined : name })),
+        ...extra.filter((e) => !beClientIds.has(e.clientId)).map((e) => ({ id: e.clientId, fromMe: e.fromMe, body: e.body, sender: e.fromMe ? undefined : e.sender })),
+      ]
     : storeMessages;
 
   const send = async () => {
@@ -72,18 +127,27 @@ export function ChatRoom({ navigation, route }: any) {
         return;
       }
       setText('');
+      const clientId = rid();
+      // Show it immediately + push over the mesh so nearby members get it offline.
+      setExtra((prev) => [...prev, { clientId, fromMe: true, body, needsPersist: true }]);
+      void sendOverMesh(chatId as string, clientId, body);
       try {
-        await apiSendMessage(chatId, body);
+        await apiSendMessage(chatId as string, body, clientId);
+        setExtra((prev) => prev.map((e) => (e.clientId === clientId ? { ...e, needsPersist: false } : e)));
         await qc.invalidateQueries({ queryKey: ['messages', chatId] });
-      } catch (e: any) {
-        setText(body); // restore so the message isn't lost
-        Alert.alert('Message not sent', e?.message ?? 'Please try again.');
+      } catch {
+        // Offline: the mesh copy is out; the poll retries persistence on reconnect.
       }
     } else {
       setText('');
       storeSend(paramChatId, body);
     }
   };
+
+  const showMeshBanner = groupMesh ? !groupMesh.online : useBackend && meshPeers > 0;
+  const meshLabel = groupMesh
+    ? `● No network — messaging over Bluetooth mesh · ${groupMesh.hops} hops`
+    : `● Bluetooth mesh active · ${meshPeers} nearby`;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -94,9 +158,9 @@ export function ChatRoom({ navigation, route }: any) {
             <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size.body2, marginBottom: 8 }}>{handle} · Open in Instagram ↗</Text>
           </Pressable>
         )}
-        {mesh && !mesh.online && (
+        {showMeshBanner && (
           <View style={[styles.mesh, { backgroundColor: t.colors.accentD4, borderRadius: t.radius.md }]}>
-            <Text style={{ color: t.colors.accentL2, fontSize: t.typography.size.xs }}>● No network — messaging over Bluetooth mesh · {mesh.hops} hops</Text>
+            <Text style={{ color: t.colors.accentL2, fontSize: t.typography.size.xs }}>{meshLabel}</Text>
           </View>
         )}
       </View>
