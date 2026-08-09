@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuthStore } from '../../store/authStore';
@@ -26,7 +26,15 @@ export function MyProfile({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const verified = useAuthStore((s) => s.isVerified);
+  const signOut = useAuthStore((s) => s.signOut);
   const balance = useWalletStore((s) => s.balance);
+
+  // Clearing the user swaps RootNavigator back to onboarding automatically.
+  const logout = () =>
+    Alert.alert('Log out?', "You'll need to sign in again to get back in.", [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log out', style: 'destructive', onPress: () => { void signOut(); } },
+    ]);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg, paddingTop: insets.top }}>
@@ -93,6 +101,15 @@ export function MyProfile({ navigation }: any) {
           <Row title="Safety" sub="Handle visibility, blocked travellers, trip check-in" onPress={() => navigation.navigate('Safety')} />
           <Row title="Bluetooth mesh (dev)" sub="Offline chat over BLE — test across two phones" onPress={() => navigation.navigate('MeshDebug')} />
         </View>
+
+        <Pressable
+          onPress={logout}
+          accessibilityRole="button"
+          accessibilityLabel="Log out"
+          style={({ pressed }) => [styles.row, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg, marginTop: 24, justifyContent: 'center', opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Text style={{ color: t.colors.danger, fontSize: t.typography.size.md, fontWeight: '600' }}>Log out</Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
