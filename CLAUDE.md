@@ -47,6 +47,20 @@ To read the true stored value of a `SECURITY DEFINER` flag from outside the app,
 
 Placeholder destination photos live in `src/data/tripImages.ts` (`heroImage`/`heroImages`, keyed by trip/plan id with a per-region fallback). Feed cards and detail heroes use `PhotoCarousel`; tapping a photo opens `FullscreenGallery` (pinch/pan/double-tap via reanimated + gesture-handler). All image rendering uses **`expo-image`** (`contentFit`/`transition`/`cachePolicy`), not RN `Image`. Real profile photos upload to the public `avatars` Storage bucket (`<uid>/N.jpg`); the `photos` table stores the public URLs.
 
+## Native modules & the "inert until rebuild" pattern
+
+Two features ship real native Android/Kotlin code, each behind a guarded JS seam so a JS-only build that predates the native rebuild stays alive (the seam reports "unsupported" instead of crashing):
+
+- **`src/notifications/`** (push) — `expo-notifications` + `expo-device`, lazy-loaded so the app never crashes pre-rebuild. Server side is the `notify-push` Edge Function fired by DB webhooks (`stage7`, `PUSH_SETUP.md`); real delivery needs FCM/EAS creds + a rebuild.
+- **`src/mesh/` + `modules/kaafilla-mesh/`** (Bluetooth-mesh chat) — a **local Expo module** (Kotlin under `modules/`). This is the prebuild-safe home for native code: `/android` and `/ios` are git-ignored/regenerated, so hand-edited files there get wiped — put native code in a local module instead. Clean-room BLE mesh **(no GPL — do not copy bitchat-android)**; wired into 1:1 `ChatRoom` (dual-send over Supabase + mesh, `client_id` dedup, per-chat `chat_mesh_keys` secret) with a dev panel at **You → "Bluetooth mesh (dev)"**. Design + phase status live in `MESH_PLAN.md`.
+
+Rules when touching native code here:
+- Changing Kotlin (or adding a native dep) needs a rebuild — `npx expo run:android`, or `cd android && ./gradlew.bat assembleDebug -PreactNativeArchitectures=arm64-v8a` then `adb -s <serial> install -r android/app/build/outputs/apk/debug/app-debug.apk`. **JS reload is not enough.** Sanity-check Kotlin fast with `cd android && ./gradlew.bat :kaafilla-mesh:compileDebugKotlin`.
+- **Never top-level `import` a native module in app code** — it throws on a build that lacks it. Probe with `requireOptionalNativeModule(name)` (returns `null`) and fall back, exactly like `src/mesh/index.ts` and `src/notifications/push.ts`. Type-only imports from the module are fine (erased at runtime).
+- BLE needs **two physical devices** to test (emulators have no Bluetooth). Android ≤11 scans via `ACCESS_FINE_LOCATION`; 12+ uses `BLUETOOTH_SCAN/ADVERTISE/CONNECT`. Background relay runs under a foreground service (`MeshForegroundService`).
+
+Edge Functions (`economy`, `notify-push`) deploy via the **Supabase dashboard** (paste the file), not the CLI. `economy` keeps Verify JWT **on**; `notify-push` turns it **off** and authenticates with a `WEBHOOK_SECRET` header.
+
 ## Windows / Android dev reality
 
 - **JDK 17 is mandatory** for the native build (`JAVA_HOME` → Microsoft.OpenJDK.17). The Android Studio bundled JBR is JDK 25 and fails `react-native-worklets`/`screens` `configureCMakeDebug` with a misleading *"restricted method in java.lang.System"* error.
