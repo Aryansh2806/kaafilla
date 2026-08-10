@@ -9,8 +9,7 @@ import { Input, TextArea } from '../../components/atoms/Input';
 import { Button } from '../../components/atoms/Button';
 import { useAuthStore } from '../../store/authStore';
 import { hasBackend } from '../../api/client';
-import { saveProfile, getCurrentProfile, saveGenderCheck } from '../../api/auth';
-import { detectGender } from '../../verification';
+import { saveProfile, getCurrentProfile, runGenderCheck } from '../../api/auth';
 import type { Lead, Profile } from '../../types';
 
 export function EditProfile({ navigation }: any) {
@@ -72,14 +71,11 @@ export function EditProfile({ navigation }: any) {
       const res = await getCurrentProfile();
       if (res) {
         let profile = res.profile;
-        // Soft photo/gender check when gender is set here (best-effort, non-blocking).
+        // Soft photo/gender check when gender is set here — server-side Edge
+        // Function (best-effort, non-blocking).
         if (patch.lead && profile.photos?.[0]) {
-          const det = await detectGender(profile.photos[0]);
-          if (det) {
-            const check = det.gender === patch.lead ? 'match' : 'needs_review';
-            await saveGenderCheck(check, det.gender);
-            profile = { ...profile, genderCheck: check, detectedGender: det.gender };
-          }
+          const r = await runGenderCheck();
+          if (r) profile = { ...profile, genderCheck: r.check, detectedGender: r.detected ?? undefined };
         }
         signIn(profile); // refresh local user with stored (public) photo URLs
       }

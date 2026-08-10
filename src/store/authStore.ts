@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import type { Profile, VerificationStatus, Lead } from '../types';
 import type { VerificationRecord } from '../verification';
 import { hasBackend } from '../api/client';
-import { getCurrentProfile, saveProfile, signOutSupabase, markVerified, saveGenderCheck } from '../api/auth';
-import { detectGender } from '../verification';
+import { getCurrentProfile, saveProfile, signOutSupabase, markVerified, runGenderCheck } from '../api/auth';
 import { removePushToken } from '../notifications/push';
 
 // Session + onboarding state. With a backend configured, the real Supabase
@@ -102,17 +101,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await saveProfile(patch);
       const res = await getCurrentProfile();
       if (res) {
-        // Soft photo/gender check on the face photo. Best-effort and non-blocking:
-        // a mismatch is flagged for human review, never an auto-reject.
+        // Soft photo/gender check, run server-side (Edge Function). Best-effort
+        // and non-blocking: a mismatch is flagged for review, never auto-rejected.
         let profile = res.profile;
-        const facePhoto = profile.photos?.[0];
-        if (facePhoto && d.gender) {
-          const det = await detectGender(facePhoto);
-          if (det) {
-            const check = det.gender === d.gender ? 'match' : 'needs_review';
-            await saveGenderCheck(check, det.gender);
-            profile = { ...profile, genderCheck: check, detectedGender: det.gender };
-          }
+        if (profile.photos?.[0] && d.gender) {
+          const r = await runGenderCheck();
+          if (r) profile = { ...profile, genderCheck: r.check, detectedGender: r.detected ?? undefined };
         }
         set({
           user: profile,

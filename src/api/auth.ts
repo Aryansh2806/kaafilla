@@ -128,16 +128,21 @@ function rowToProfile(row: ProfileRow, photos: string[]): Profile {
   };
 }
 
-// Persist the soft photo/gender check result. Client-side for now (matches the
-// simulated KYC posture); production should set this in an Edge Function so a
-// user can't forge 'match' — see services/gender-detect/README.md.
-export async function saveGenderCheck(check: GenderCheck, detected: Lead | null): Promise<void> {
-  if (!supabase) return;
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) return;
-  await supabase.from('profiles').update({ gender_check: check, detected_gender: detected }).eq('id', session.user.id);
+// Run the soft photo/gender check server-side. The `gender-check` Edge Function
+// reads the caller's declared gender + first photo from the DB, calls the gender
+// model with a server-held key, and writes gender_check / detected_gender with
+// the service role — so a client can't forge 'match' (stage15 blocks the owner
+// from writing those columns). Best-effort and non-blocking: a null return, a
+// missing key, no face, or an unreachable service all leave the state unchanged.
+export async function runGenderCheck(): Promise<{ check: GenderCheck; detected: Lead | null } | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase.functions.invoke('gender-check', { body: {} });
+    if (error || !data?.ok) return null;
+    return { check: data.check as GenderCheck, detected: (data.detected ?? null) as Lead | null };
+  } catch {
+    return null; // unreachable → non-blocking
+  }
 }
 
 // User appeals a needs_review flag (their photo is right, the model was wrong).
