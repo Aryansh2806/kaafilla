@@ -20,7 +20,8 @@ export function EditProfile({ navigation }: any) {
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const signIn = useAuthStore((s) => s.signIn);
 
-  const genderLocked = !!user?.lead; // set once, then immutable (server-enforced)
+  const underReview = user?.genderCheck === 'needs_review'; // let mistakes self-correct
+  const genderLocked = !!user?.lead && !underReview; // locked once confirmed, editable while under review
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [city, setCity] = useState(user?.city ?? '');
   const [work, setWork] = useState(user?.work ?? '');
@@ -152,8 +153,10 @@ export function EditProfile({ navigation }: any) {
                     );
                   })}
                 </View>
-                <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 8, lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
-                  🔒 You can set this once. After it saves it locks — changing it later needs a support review.
+                <Text style={{ color: underReview ? t.colors.warning : t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 8, lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
+                  {underReview
+                    ? '⚠️ Under review. Picked the wrong one by mistake? Change it and save — it re-checks against your photo. If your choice is right, appeal from your profile instead.'
+                    : '🔒 You can set this once. After it saves it locks — changing it later needs a support review.'}
                 </Text>
               </>
             )}

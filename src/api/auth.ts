@@ -140,6 +140,17 @@ export async function saveGenderCheck(check: GenderCheck, detected: Lead | null)
   await supabase.from('profiles').update({ gender_check: check, detected_gender: detected }).eq('id', session.user.id);
 }
 
+// User appeals a needs_review flag (their photo is right, the model was wrong).
+// Moves it to 'appealed' for a human to clear. Only meaningful while under review.
+export async function appealGenderCheck(): Promise<void> {
+  if (!supabase) return;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return;
+  await supabase.from('profiles').update({ gender_check: 'appealed' }).eq('id', session.user.id);
+}
+
 // The signed-in user's profile, or null if there is no session. `complete` is
 // false until onboarding has written a first name into the auto-created row.
 export async function getCurrentProfile(): Promise<{ profile: Profile; complete: boolean } | null> {

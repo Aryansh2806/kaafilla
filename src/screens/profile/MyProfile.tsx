@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuthStore } from '../../store/authStore';
 import { useWalletStore } from '../../store/walletStore';
+import { appealGenderCheck } from '../../api/auth';
 import { Avatar } from '../../components/atoms/Avatar';
 import { VerifiedBadge, Tag } from '../../components/atoms/Badges';
 import { ProgressBar } from '../../components/atoms/Progress';
@@ -27,7 +28,25 @@ export function MyProfile({ navigation }: any) {
   const user = useAuthStore((s) => s.user);
   const verified = useAuthStore((s) => s.isVerified);
   const signOut = useAuthStore((s) => s.signOut);
+  const updateProfile = useAuthStore((s) => s.updateProfile);
   const balance = useWalletStore((s) => s.balance);
+
+  // Appeal a wrong-model flag: the photo is right, so send it to a person.
+  const appeal = () =>
+    Alert.alert(
+      'Appeal the review?',
+      "If your photos are right and the check got it wrong, a person will review it. If you actually picked the wrong gender, cancel and fix it in Edit instead — that re-checks instantly.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Appeal',
+          onPress: () => {
+            updateProfile({ genderCheck: 'appealed' });
+            void appealGenderCheck();
+          },
+        },
+      ],
+    );
 
   // Clearing the user swaps RootNavigator back to onboarding automatically.
   const logout = () =>
@@ -55,15 +74,29 @@ export function MyProfile({ navigation }: any) {
         </View>
 
         {user?.genderCheck === 'needs_review' && (
-          <Pressable
-            onPress={() => Alert.alert('Gender under review', "A quick photo check didn't line up with the gender you chose, so a person is looking at it. You keep full access to browsing; women-only spaces unlock once it's cleared. If this is wrong, request a review and we'll sort it fast.", [{ text: 'Close' }, { text: 'Request a review' }])}
-            style={{ marginTop: 16, padding: 14, borderRadius: t.radius.lg, backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)' }}
-          >
+          <View style={{ marginTop: 16, padding: 14, borderRadius: t.radius.lg, backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)' }}>
             <Text style={{ color: t.colors.warning, fontSize: t.typography.size.body2, fontWeight: '700' }}>Gender under review</Text>
             <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.xs, marginTop: 4, lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
-              A photo check didn't match your selection — a person will look at it. Tap to appeal.
+              A photo check didn't match your selection. Picked the wrong one by mistake? Fix it in Edit. If your choice is right, appeal and a person will look.
             </Text>
-          </Pressable>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <Pressable onPress={() => navigation.navigate('EditProfile')} style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: t.radius.md, backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.n800 }}>
+                <Text style={{ color: t.colors.text, fontSize: t.typography.size.body2, fontWeight: '600' }}>Fix in Edit</Text>
+              </Pressable>
+              <Pressable onPress={appeal} style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: t.radius.md, backgroundColor: t.colors.accentL3 }}>
+                <Text style={{ color: t.colors.accentD4, fontSize: t.typography.size.body2, fontWeight: '600' }}>Appeal — my choice is right</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {user?.genderCheck === 'appealed' && (
+          <View style={{ marginTop: 16, padding: 14, borderRadius: t.radius.lg, backgroundColor: t.colors.surface, borderWidth: 1, borderColor: t.colors.n800 }}>
+            <Text style={{ color: t.colors.text, fontSize: t.typography.size.body2, fontWeight: '700' }}>Appeal submitted</Text>
+            <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 4, lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
+              A person will review your photos and gender within a day. You keep full browsing access meanwhile.
+            </Text>
+          </View>
         )}
 
         {/* My trips */}

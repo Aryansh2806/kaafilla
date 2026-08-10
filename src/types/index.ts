@@ -114,4 +114,4 @@ export interface Profile {
   detectedGender?: Lead; // what the photo model returned, for the reviewer
 }
 
-export type GenderCheck = 'unchecked' | 'match' | 'needs_review';
+export type GenderCheck = 'unchecked' | 'match' | 'needs_review' | 'appealed';
