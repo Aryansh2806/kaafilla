@@ -1,6 +1,6 @@
 import { File } from 'expo-file-system';
 import { supabase } from './client';
-import type { Profile } from '../types';
+import type { Profile, Lead, GenderCheck } from '../types';
 
 // Upload local image URIs to the public 'avatars' bucket under <uid>/, returning
 // their public URLs. Already-remote (http) URIs pass through unchanged, and any
@@ -104,6 +104,8 @@ interface ProfileRow {
   bio: string | null;
   instagram: string | null;
   lead: 'women' | 'men' | null;
+  gender_check: GenderCheck | null;
+  detected_gender: 'women' | 'men' | null;
   is_verified: boolean;
   verification_status: 'none' | 'pending' | 'verified';
 }
@@ -119,9 +121,23 @@ function rowToProfile(row: ProfileRow, photos: string[]): Profile {
     instagram: row.instagram ?? undefined,
     photos: photos.length ? photos : undefined,
     lead: row.lead ?? undefined,
+    genderCheck: row.gender_check ?? 'unchecked',
+    detectedGender: row.detected_gender ?? undefined,
     isVerified: row.is_verified,
     verificationStatus: row.verification_status,
   };
+}
+
+// Persist the soft photo/gender check result. Client-side for now (matches the
+// simulated KYC posture); production should set this in an Edge Function so a
+// user can't forge 'match' — see services/gender-detect/README.md.
+export async function saveGenderCheck(check: GenderCheck, detected: Lead | null): Promise<void> {
+  if (!supabase) return;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return;
+  await supabase.from('profiles').update({ gender_check: check, detected_gender: detected }).eq('id', session.user.id);
 }
 
 // The signed-in user's profile, or null if there is no session. `complete` is

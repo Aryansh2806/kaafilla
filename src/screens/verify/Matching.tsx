@@ -10,6 +10,7 @@ import { kyc } from '../../verification';
 export function Matching({ navigation, route }: any) {
   const t = useTheme();
   const setVerified = useAuthStore((s) => s.setVerified);
+  const declaredGender = useAuthStore((s) => s.user?.lead);
   const dot = usePulse();
 
   useEffect(() => {
@@ -17,13 +18,16 @@ export function Matching({ navigation, route }: any) {
     (async () => {
       const record = await kyc.matchSelfie('selfie.jpg');
       if (!alive) return;
+      // The liveness/match confirms a real person; gender stays what the user
+      // declared (profiles.lead) rather than being guessed from the face.
+      if (declaredGender) record.gender = declaredGender === 'women' ? 'FEMALE' : 'MALE';
       setVerified(record);
       navigation.replace('VerifySuccess', { gateFrom: route.params?.gateFrom });
     })();
     return () => {
       alive = false;
     };
-  }, [navigation, route.params?.gateFrom, setVerified]);
+  }, [navigation, route.params?.gateFrom, setVerified, declaredGender]);
 
   return (
     <View style={[styles.root, { backgroundColor: t.colors.bg }]}>

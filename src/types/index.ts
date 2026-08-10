@@ -108,5 +108,10 @@ export interface Profile {
   photos?: string[];
   isVerified: boolean;
   verificationStatus: VerificationStatus;
-  lead?: Lead;
+  lead?: Lead; // declared gender, locked once set
+  // soft photo/gender consistency check (flag-for-review model, never auto-block)
+  genderCheck?: GenderCheck;
+  detectedGender?: Lead; // what the photo model returned, for the reviewer
 }
+
+export type GenderCheck = 'unchecked' | 'match' | 'needs_review';

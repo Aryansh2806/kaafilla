@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { Profile, VerificationStatus } from '../types';
+import type { Profile, VerificationStatus, Lead } from '../types';
 import type { VerificationRecord } from '../verification';
 import { hasBackend } from '../api/client';
-import { getCurrentProfile, saveProfile, signOutSupabase, markVerified } from '../api/auth';
+import { getCurrentProfile, saveProfile, signOutSupabase, markVerified, saveGenderCheck } from '../api/auth';
+import { detectGender } from '../verification';
 import { removePushToken } from '../notifications/push';
 
 // Session + onboarding state. With a backend configured, the real Supabase
@@ -18,6 +19,7 @@ export interface OnboardingDraft {
   work?: string;
   bio?: string;
   instagram?: string;
+  gender?: Lead; // declared during onboarding, written to profiles.lead (then locked)
   photos?: string[];
   trips?: string[];
   been?: string[];
@@ -91,6 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       work: d.work,
       bio: d.bio,
       instagram: d.instagram,
+      lead: d.gender, // declared gender → profiles.lead (server locks it once set)
       photos: d.photos,
     };
 
@@ -99,10 +102,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await saveProfile(patch);
       const res = await getCurrentProfile();
       if (res) {
+        // Soft photo/gender check on the face photo. Best-effort and non-blocking:
+        // a mismatch is flagged for human review, never an auto-reject.
+        let profile = res.profile;
+        const facePhoto = profile.photos?.[0];
+        if (facePhoto && d.gender) {
+          const det = await detectGender(facePhoto);
+          if (det) {
+            const check = det.gender === d.gender ? 'match' : 'needs_review';
+            await saveGenderCheck(check, det.gender);
+            profile = { ...profile, genderCheck: check, detectedGender: det.gender };
+          }
+        }
         set({
-          user: res.profile,
-          isVerified: res.profile.isVerified,
-          verificationStatus: res.profile.verificationStatus,
+          user: profile,
+          isVerified: profile.isVerified,
+          verificationStatus: profile.verificationStatus,
         });
       }
     } else {
@@ -115,6 +130,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           work: patch.work,
           bio: patch.bio,
           instagram: patch.instagram,
+          lead: patch.lead,
           photos: patch.photos,
           isVerified: false,
           verificationStatus: 'none',

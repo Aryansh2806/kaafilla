@@ -9,7 +9,9 @@ import { Input, TextArea } from '../../components/atoms/Input';
 import { Button } from '../../components/atoms/Button';
 import { useAuthStore } from '../../store/authStore';
 import { hasBackend } from '../../api/client';
-import { saveProfile, getCurrentProfile } from '../../api/auth';
+import { saveProfile, getCurrentProfile, saveGenderCheck } from '../../api/auth';
+import { detectGender } from '../../verification';
+import type { Lead, Profile } from '../../types';
 
 export function EditProfile({ navigation }: any) {
   const t = useTheme();
@@ -18,9 +20,11 @@ export function EditProfile({ navigation }: any) {
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const signIn = useAuthStore((s) => s.signIn);
 
+  const genderLocked = !!user?.lead; // set once, then immutable (server-enforced)
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [city, setCity] = useState(user?.city ?? '');
   const [work, setWork] = useState(user?.work ?? '');
+  const [gender, setGender] = useState<Lead | null>(user?.lead ?? null);
   const [bio, setBio] = useState(user?.bio ?? '');
   const [instagram, setInstagram] = useState(user?.instagram ?? '');
   const [photos, setPhotos] = useState<(string | null)[]>([
@@ -54,7 +58,8 @@ export function EditProfile({ navigation }: any) {
 
   const save = async () => {
     const photoList = photos.filter(Boolean) as string[];
-    const patch = { firstName, city, work, bio, instagram, photos: photoList };
+    const patch: Partial<Profile> = { firstName, city, work, bio, instagram, photos: photoList };
+    if (!genderLocked && gender) patch.lead = gender; // first-time set only; locked thereafter
     if (!hasBackend) {
       updateProfile(patch);
       navigation.goBack();
@@ -64,7 +69,19 @@ export function EditProfile({ navigation }: any) {
       setSaving(true);
       await saveProfile(patch); // writes fields + uploads any new local photos to Storage
       const res = await getCurrentProfile();
-      if (res) signIn(res.profile); // refresh local user with stored (public) photo URLs
+      if (res) {
+        let profile = res.profile;
+        // Soft photo/gender check when gender is set here (best-effort, non-blocking).
+        if (patch.lead && profile.photos?.[0]) {
+          const det = await detectGender(profile.photos[0]);
+          if (det) {
+            const check = det.gender === patch.lead ? 'match' : 'needs_review';
+            await saveGenderCheck(check, det.gender);
+            profile = { ...profile, genderCheck: check, detectedGender: det.gender };
+          }
+        }
+        signIn(profile); // refresh local user with stored (public) photo URLs
+      }
       navigation.goBack();
     } catch (e: any) {
       Alert.alert('Could not save', e?.message ?? 'Please try again.');
@@ -108,6 +125,40 @@ export function EditProfile({ navigation }: any) {
           <Input label="First name" value={firstName} onChangeText={setFirstName} />
           <Input label="Home city" value={city} onChangeText={setCity} />
           <Input label="What you do" value={work} onChangeText={setWork} />
+
+          {/* Gender: locked once set (immutable server-side), otherwise a one-time choice. */}
+          <View>
+            <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.sm, marginBottom: 8 }}>Gender</Text>
+            {genderLocked ? (
+              <View style={[styles.locked, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.md }]}>
+                <Text style={{ color: t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{user?.lead === 'women' ? 'Woman' : 'Man'}</Text>
+                <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>🔒 Locked</Text>
+              </View>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {([['women', 'Woman'], ['men', 'Man']] as [Lead, string][]).map(([v, label]) => {
+                    const on = gender === v;
+                    return (
+                      <Pressable
+                        key={v}
+                        onPress={() => setGender(v)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        style={{ flex: 1, minHeight: 50, borderRadius: t.radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.colors.accentL3 : t.colors.surface, borderWidth: 1, borderColor: on ? t.colors.accent : t.colors.n800 }}
+                      >
+                        <Text style={{ color: on ? t.colors.accentD4 : t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs, marginTop: 8, lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
+                  🔒 You can set this once. After it saves it locks — changing it later needs a support review.
+                </Text>
+              </>
+            )}
+          </View>
+
           <TextArea label="Bio" value={bio} onChangeText={setBio} min={40} placeholder="Where you've been, what you're looking for, how you travel." />
           <Input label="Instagram handle" value={instagram} onChangeText={setInstagram} placeholder="@yourhandle" autoCapitalize="none" />
         </View>
@@ -125,4 +176,5 @@ export function EditProfile({ navigation }: any) {
 const styles = StyleSheet.create({
   slot: { flex: 1, aspectRatio: 0.82, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   mainTag: { position: 'absolute', top: 6, left: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  locked: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 50, paddingHorizontal: 15, borderWidth: 1 },
 });

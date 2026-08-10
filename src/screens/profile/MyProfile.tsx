@@ -46,13 +46,25 @@ export function MyProfile({ navigation }: any) {
               <Text style={{ color: t.colors.text, fontSize: t.typography.size['2xl'], fontWeight: '600' }}>{user?.firstName}, {user?.age ?? 24}</Text>
               {verified && <VerifiedBadge size={16} />}
             </View>
-            <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>{user?.city ?? 'Mumbai'} · {verified ? 'Aadhaar verified' : 'Not verified yet'}</Text>
+            <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>{user?.city ?? 'Mumbai'}{user?.lead ? ` · ${user.lead === 'women' ? 'Woman' : 'Man'}` : ''} · {verified ? 'Aadhaar verified' : 'Not verified yet'}</Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 8 }}>
             <Pressable onPress={() => navigation.navigate('Activity')} accessibilityRole="button" accessibilityLabel="Activity"><Text style={{ fontSize: 20 }}>🔔</Text></Pressable>
             <Pressable onPress={() => navigation.navigate('EditProfile')}><Text style={{ color: t.colors.accent, fontSize: t.typography.size.md }}>Edit</Text></Pressable>
           </View>
         </View>
+
+        {user?.genderCheck === 'needs_review' && (
+          <Pressable
+            onPress={() => Alert.alert('Gender under review', "A quick photo check didn't line up with the gender you chose, so a person is looking at it. You keep full access to browsing; women-only spaces unlock once it's cleared. If this is wrong, request a review and we'll sort it fast.", [{ text: 'Close' }, { text: 'Request a review' }])}
+            style={{ marginTop: 16, padding: 14, borderRadius: t.radius.lg, backgroundColor: 'rgba(251,191,36,0.12)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)' }}
+          >
+            <Text style={{ color: t.colors.warning, fontSize: t.typography.size.body2, fontWeight: '700' }}>Gender under review</Text>
+            <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.xs, marginTop: 4, lineHeight: t.typography.size.xs * t.typography.lineHeight.relaxed }}>
+              A photo check didn't match your selection — a person will look at it. Tap to appeal.
+            </Text>
+          </Pressable>
+        )}
 
         {/* My trips */}
         <Text style={{ color: t.colors.textFaint, fontSize: t.typography.size.kicker, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 24, marginBottom: 10 }}>Your trips</Text>
