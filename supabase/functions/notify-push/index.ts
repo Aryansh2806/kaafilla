@@ -95,6 +95,29 @@ async function buildForRecord(
     };
   }
 
+  // Operator-portal notifications (stage20). The portal's server actions write
+  // the row with the service role after assertPermission + audit; the title/body
+  // are already composed there and are deliberately minimal (they show on a lock
+  // screen), so we pass them through verbatim rather than re-deriving anything.
+  if (table === 'notifications') {
+    const recipient = record.profile_id;
+    if (!recipient) return null;
+    const title = (record.title ?? 'Kaafilla').toString();
+    const body = (record.body ?? '').toString();
+    return {
+      recipients: [recipient],
+      make: (token) => ({
+        to: token,
+        title,
+        body: body.length > 140 ? `${body.slice(0, 139)}…` : body,
+        // The deep link re-authorizes on open — never trust this payload alone.
+        data: { kind: record.kind ?? 'notification', ...(record.data ?? {}) },
+        sound: 'default',
+        channelId: 'default',
+      }),
+    };
+  }
+
   return null;
 }
 
