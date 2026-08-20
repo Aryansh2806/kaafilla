@@ -44,3 +44,7 @@ yarn-error.*
 
 # local module build outputs
 modules/**/build/
+
+# Firebase config — identifies the project; repo is public, so keep it local.
+# Needed at build time; for EAS cloud builds use: eas secret:create --type file
+google-services.json
