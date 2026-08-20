@@ -59,9 +59,47 @@ const camelAll = <T>(rows: Record<string, unknown>[]): T[] => rows.map((r) => ca
 // Read-side catalog API. Uses Supabase when configured, else the seed. Screens
 // and hooks never branch on this — they just await these functions.
 
+// Operator-portal trips (stage17) arrive as one `trips` row per dated departure,
+// grouped by product_id. The feed shows ONE card per product (the soonest
+// upcoming departure represents it, annotated with departureCount); TripDetail
+// offers the date picker via getDepartures(). Legacy rows (product_id null)
+// pass through untouched. RLS already hides operator drafts.
+function rollUpDepartures(rows: Trip[]): Trip[] {
+  const legacy: Trip[] = [];
+  const byProduct = new Map<string, Trip[]>();
+  for (const r of rows) {
+    if (r.productId) {
+      const list = byProduct.get(r.productId) ?? [];
+      list.push(r);
+      byProduct.set(r.productId, list);
+    } else legacy.push(r);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const cards: Trip[] = [];
+  for (const sibs of byProduct.values()) {
+    const sorted = [...sibs].sort((a, b) => (a.startsOn ?? '').localeCompare(b.startsOn ?? ''));
+    const rep = sorted.find((d) => (d.startsOn ?? '') >= today) ?? sorted[sorted.length - 1];
+    cards.push({ ...rep, departureCount: sibs.length });
+  }
+  return [...legacy, ...cards];
+}
+
 export async function getTrips(): Promise<Trip[]> {
   if (!hasBackend) return TRIPS;
   const { data, error } = await supabase!.from('trips').select('*');
+  if (error) throw error;
+  return rollUpDepartures(camelAll<Trip>(data ?? []));
+}
+
+// All published departures of a product, for TripDetail's date picker. Reads the
+// stage17 marketplace projection view (the pinned app↔portal read contract).
+export async function getDepartures(productId: string): Promise<Trip[]> {
+  if (!hasBackend) return [];
+  const { data, error } = await supabase!
+    .from('v_marketplace_departures')
+    .select('*')
+    .eq('product_id', productId)
+    .order('starts_on');
   if (error) throw error;
   return camelAll<Trip>(data ?? []);
 }

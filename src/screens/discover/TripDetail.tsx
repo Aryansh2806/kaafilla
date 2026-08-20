@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import Svg, { Defs, LinearGradient as SvgLinear, Stop, Rect } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
-import { useTrip, useTrips, useOperator, useItinerary } from '../../api/hooks';
+import { useTrip, useTrips, useOperator, useItinerary, useDepartures } from '../../api/hooks';
 import { useAuthStore } from '../../store/authStore';
 import { useTripStore } from '../../store/tripStore';
 import { Header } from '../../components/molecules/Header';
@@ -79,10 +80,16 @@ function SimilarTrips({ trip, onOpen }: { trip: Trip; onOpen: (id: string) => vo
 export function TripDetail({ navigation, route }: any) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const id = route.params?.id ?? 'spiti';
+  const routeId = route.params?.id ?? 'spiti';
+  // Departure date-picker (stage17): sibling departures of the same product roll
+  // up under this one screen. Everything below keys off the SELECTED departure's
+  // real trips.id, so the ₹49 waitlist/economy is untouched by the rollup.
+  const [selectedId, setSelectedId] = useState<string>(routeId);
+  const id = selectedId;
   const { data: trip } = useTrip(id);
   const { data: op } = useOperator(trip?.operatorId ?? '');
   const { data: itinerary } = useItinerary(id);
+  const { data: departures } = useDepartures(trip?.productId);
   const verified = useAuthStore((s) => s.isVerified);
   const override = useTripStore((s) => s.overrides[id]);
 
@@ -92,6 +99,11 @@ export function TripDetail({ navigation, route }: any) {
   const operatorName = override?.name ?? op?.name;
   const imgs = galleryFor(trip);
   const join = () => navigation.navigate(verified ? 'Joined' : 'VerifyGate', { id, gateFrom: 'waitlist' });
+
+  // e.g. "12 Sep" from "2026-09-12" (UTC-safe; the date is a plain calendar day).
+  const fmtDate = (d: string) =>
+    new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const dates = (departures ?? []).filter((d) => d.startsOn);
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -127,36 +139,82 @@ export function TripDetail({ navigation, route }: any) {
             </View>
           )}
           <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: t.spacing[4] }}>
-            {operatorName} · ★ {trip.rating} · since {op?.since}
+            {[operatorName, trip.rating ? `★ ${trip.rating}` : null, op?.since ? `since ${op.since}` : null]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
           <Text style={{ color: t.colors.text, fontSize: t.typography.size['3xl'], fontWeight: '500', marginTop: 4 }}>{trip.name}</Text>
           <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm, marginTop: 6 }}>
             {trip.month} · {trip.days} days · {trip.stay} · group of {trip.groupSize}
           </Text>
-          <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm }}>Departs from {trip.cities}</Text>
+          {!!trip.cities && (
+            <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm }}>Departs from {trip.cities}</Text>
+          )}
 
-          {/* Trip lead */}
-          <View style={[styles.leadCard, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg }]}>
-            <Avatar name={trip.leadName} size={44} />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{trip.leadName}</Text>
-              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>
-                {trip.lead === 'women' ? 'Woman' : 'Man'} · trip lead · {trip.leadYears} years on this route
-              </Text>
+          {/* Departure dates (operator batches roll up under this one trip card) */}
+          {dates.length > 0 && (
+            <Section title="Pick your dates">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                {dates.map((d) => {
+                  const on = d.id === id;
+                  return (
+                    <Pressable
+                      key={d.id}
+                      onPress={() => setSelectedId(d.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`Departure ${fmtDate(d.startsOn!)}, ₹${(d.price ?? 0).toLocaleString('en-IN')}`}
+                      style={{
+                        minHeight: 48,
+                        paddingVertical: 8,
+                        paddingHorizontal: 16,
+                        borderRadius: t.radius.md,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: on ? t.colors.accentL3 : t.colors.surface,
+                        borderWidth: 1,
+                        borderColor: on ? t.colors.accent : t.colors.n800,
+                      }}
+                    >
+                      <Text style={{ color: on ? t.colors.accentD4 : t.colors.text, fontSize: t.typography.size.md, fontWeight: '600' }}>
+                        {fmtDate(d.startsOn!)}
+                      </Text>
+                      <Text style={{ color: on ? t.colors.accentD4 : t.colors.textMuted, fontSize: t.typography.size.xs, fontVariant: ['tabular-nums'] }}>
+                        ₹{(d.price ?? 0).toLocaleString('en-IN')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </Section>
+          )}
+
+          {/* Trip lead (legacy operator-catalog rows; portal departures have none) */}
+          {!!trip.leadName && (
+            <View style={[styles.leadCard, { backgroundColor: t.colors.surface, borderColor: t.colors.n800, borderRadius: t.radius.lg }]}>
+              <Avatar name={trip.leadName} size={44} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{trip.leadName}</Text>
+                <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>
+                  {trip.lead === 'women' ? 'Woman' : 'Man'} · trip lead · {trip.leadYears} years on this route
+                </Text>
+              </View>
+              <LeadBadge lead={trip.lead} />
             </View>
-            <LeadBadge lead={trip.lead} />
-          </View>
+          )}
 
           {/* Compare row */}
-          <Section title="Operators">
-            <Text onPress={() => navigation.navigate('PriceComparison', { id })} style={{ color: t.colors.accentL3, fontSize: t.typography.size.md }}>
-              {trip.operators} operators run this route — compare prices →
-            </Text>
-          </Section>
+          {!!trip.operators && (
+            <Section title="Operators">
+              <Text onPress={() => navigation.navigate('PriceComparison', { id })} style={{ color: t.colors.accentL3, fontSize: t.typography.size.md }}>
+                {trip.operators} operators run this route — compare prices →
+              </Text>
+            </Section>
+          )}
 
           {/* Waitlist */}
           <Section title="Who’s on the waitlist">
-            <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{trip.waitlist} travellers</Text>
+            <Text style={{ color: t.colors.text, fontSize: t.typography.size.lg, fontWeight: '600' }}>{trip.waitlist ?? 0} travellers</Text>
             <View style={{ marginTop: 12 }}>
               <RatioBar women={trip.womenPct} masked={!verified} />
             </View>
@@ -170,7 +228,7 @@ export function TripDetail({ navigation, route }: any) {
           {/* Queue */}
           <Section title="The queue & priority">
             <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.md }}>
-              {trip.groupSize} seats · {trip.waitlist} in the queue · final call 2 days before
+              {trip.groupSize} seats · {trip.waitlist ?? 0} in the queue · final call 2 days before
             </Text>
           </Section>
 

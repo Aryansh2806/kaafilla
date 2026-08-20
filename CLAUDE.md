@@ -24,7 +24,7 @@ The app runs against a **hosted** Supabase project. `.env` (git-ignored) holds `
 Screens never call Supabase directly — they go through `src/api/` and its react-query hooks:
 
 - `client.ts` — the single Supabase client + `hasBackend`.
-- `catalog.ts` — **reads** (trips/plans/operators/reviews/itineraries/explore/people). Returns camelCase; falls back to seed when `!hasBackend`.
+- `catalog.ts` — **reads** (trips/plans/operators/reviews/itineraries/explore/people). Returns camelCase; falls back to seed when `!hasBackend`. Operator-portal departures (stage17, `kaafilla-operator` repo) arrive as one `trips` row per dated departure grouped by `product_id`: `getTrips()` rolls them up to one feed card per product, and `getDepartures(productId)` (reading `v_marketplace_departures`) feeds TripDetail's date picker. Legacy rows (`product_id` null) pass through untouched.
 - `writes.ts` — `createPlan` (+ `inferRegion`: maps a free-text place → explore-region key so plans get photos).
 - `social.ts` — connects + 1:1 chat (send/accept, `getOrCreateSoloChat`, messages).
 - `auth.ts` — email/password, profile read/write, avatar upload to Storage, `markVerified`.

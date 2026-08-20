@@ -70,9 +70,12 @@ export function FeedCard(props: ({ type: 'trip'; data: Trip } | { type: 'plan'; 
             <Text style={{ color: t.colors.accentL3, fontSize: t.typography.size['2xl'], fontWeight: '600', marginTop: 2 }}>{fmtK(props.data.price)}</Text>
             <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.sm, marginTop: 4 }}>
               {props.data.days} days · {props.data.place} · {props.data.month}
+              {(props.data.departureCount ?? 0) > 1 ? ` · ${props.data.departureCount} dates` : ''}
             </Text>
             <Text style={{ color: t.colors.textSub, fontSize: t.typography.size.body2, marginTop: 2 }}>
-              {props.data.stay} · {props.data.difficulty} · group of {props.data.groupSize} · from {props.data.cities}
+              {[props.data.stay, props.data.difficulty, `group of ${props.data.groupSize}`, props.data.cities ? `from ${props.data.cities}` : null]
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           </>
         ) : (
@@ -99,8 +102,11 @@ export function FeedCard(props: ({ type: 'trip'; data: Trip } | { type: 'plan'; 
         <View style={styles.footer}>
           {props.type === 'trip' ? (
             <>
-              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>{props.data.waitlist} waitlisted</Text>
-              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>{props.data.operators} operators · ★ {props.data.rating}</Text>
+              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>{props.data.waitlist ?? 0} waitlisted</Text>
+              <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.xs }}>
+                {props.data.operators ? `${props.data.operators} operators · ` : ''}
+                {props.data.rating ? `★ ${props.data.rating}` : 'New listing'}
+              </Text>
             </>
           ) : (
             <>

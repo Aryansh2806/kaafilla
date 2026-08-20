@@ -31,6 +31,12 @@ export interface Trip {
   leadYears: number;
   cities: string; // departs from
   images?: string[]; // operator-supplied photo URLs (images[0] = cover); [] falls back to placeholders
+  // Operator-portal departures (stage17): a trips row is one dated departure of
+  // a parent trip_products row. Legacy seed trips have none of these.
+  productId?: string | null; // parent trip_products id — groups departures under one card
+  startsOn?: string | null; // departure date (YYYY-MM-DD)
+  endsOn?: string | null;
+  departureCount?: number; // set on the representative feed card when siblings exist
 }
 
 export interface Plan {

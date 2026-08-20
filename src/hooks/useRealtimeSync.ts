@@ -7,6 +7,8 @@ import { supabase, hasBackend } from '../api/client';
 // refetch, so screens reflect the change live. Realtime still enforces RLS, so
 // clients only receive rows they are allowed to read.
 const WATCH: { table: string; keys: string[] }[] = [
+  // Operator portal publishes/cancels/reschedules departures (trips rows) live.
+  { table: 'trips', keys: ['trips', 'trip', 'departures'] },
   { table: 'plans', keys: ['plans'] },
   { table: 'profiles', keys: ['people'] },
   { table: 'connects', keys: ['incoming', 'sent', 'accepted', 'connect'] },

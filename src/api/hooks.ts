@@ -8,6 +8,12 @@ import { hasBackend } from './client';
 export const useTrips = () => useQuery({ queryKey: ['trips'], queryFn: catalog.getTrips });
 export const useTrip = (id: string) =>
   useQuery({ queryKey: ['trip', id], queryFn: () => catalog.getTrip(id) });
+export const useDepartures = (productId?: string | null) =>
+  useQuery({
+    queryKey: ['departures', productId],
+    queryFn: () => catalog.getDepartures(productId!),
+    enabled: !!productId,
+  });
 export const usePlans = () => useQuery({ queryKey: ['plans'], queryFn: catalog.getPlans });
 export const usePlan = (id: string) =>
   useQuery({ queryKey: ['plan', id], queryFn: () => catalog.getPlan(id) });
