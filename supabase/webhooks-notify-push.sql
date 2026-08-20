@@ -37,3 +37,20 @@ create trigger on_message_created
     '{}',
     '5000'
   );
+
+-- Operator-portal notification (stage20) → notify the traveller it names.
+-- These rows are written server-side by the portal when an operator calls a
+-- seat, finalizes, cancels or reschedules a departure, or executes a refund.
+-- The title/body are composed there and already lock-screen-safe, so the
+-- function passes them through verbatim.
+drop trigger if exists on_notification_created on public.notifications;
+create trigger on_notification_created
+  after insert on public.notifications
+  for each row
+  execute function supabase_functions.http_request(
+    'https://<PROJECT_REF>.functions.supabase.co/notify-push',
+    'POST',
+    '{"Content-Type":"application/json","x-webhook-secret":"<WEBHOOK_SECRET>"}',
+    '{}',
+    '5000'
+  );
