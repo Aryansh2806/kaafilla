@@ -35,6 +35,12 @@
           "color": "#9184d9"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "256cf26b-db77-4897-8069-a31cc90f8738"
+      }
+    },
+    "owner": "devkaafillas-team"
   }
 }
