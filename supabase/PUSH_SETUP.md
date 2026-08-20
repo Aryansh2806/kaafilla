@@ -16,14 +16,67 @@ see one dev warning: `[push] native module not in build yet`), never crashes.
 ## One-time setup
 
 ### 1. Firebase Cloud Messaging (required for Android remote push)
-1. Create a Firebase project → add an Android app with package `com.anonymous.kaafilla`.
-2. Download `google-services.json` into the project root and reference it in
-   `app.json` under `android.googleServicesFile` (or let EAS manage it).
-3. Create an **EAS project**: `npx eas init` (adds `extra.eas.projectId` to app.json —
-   the client reads this to mint the push token).
-4. Upload the FCM **V1 service account key** to Expo:
-   `npx eas credentials` → Android → Push Notifications (FCM V1). This is what lets
-   Expo's push service deliver to Android.
+
+Delivery path: **portal/app writes a row → webhook → notify-push → Expo push
+service → FCM → the phone.** Expo needs YOUR FCM credentials to hand the
+message to Google; that is the only reason Firebase is involved.
+
+Status in this repo (verified 2026-08): `expo-notifications` + `expo-device` are
+installed, the `expo-notifications` plugin is already in `app.json`, the Android
+package is `com.anonymous.kaafilla`, and `eas.json` exists. What is missing is
+the **Firebase project**, `google-services.json`, and `extra.eas.projectId`.
+
+#### 1a. Create the Firebase project
+1. <https://console.firebase.google.com> → **Add project** → name it (e.g.
+   `kaafilla`) → Google Analytics is optional, disable it if unsure → Create.
+2. On the project overview click the **Android** icon ("Add app").
+3. **Android package name** must be exactly `com.anonymous.kaafilla` — it must
+   match `expo.android.package` in `app.json` or FCM silently never delivers.
+   Nickname and debug SHA-1 can be skipped (SHA-1 is for Google Sign-In, not push).
+4. **Download `google-services.json`** and put it in the project ROOT (next to
+   `app.json`).
+5. Skip the "add the SDK" Gradle steps — the Expo config plugin does that.
+
+#### 1b. Point app.json at it
+Add `googleServicesFile` inside the existing `expo.android` block:
+
+```jsonc
+"android": {
+  "package": "com.anonymous.kaafilla",
+  "googleServicesFile": "./google-services.json",
+  // ...existing adaptiveIcon etc.
+}
+```
+
+`google-services.json` is not a secret in the password sense, but it identifies
+your Firebase project — keep it out of public forks. It IS required at build
+time, so if the repo is private, committing it is the simplest option; otherwise
+add it to `.gitignore` and let EAS manage it as a build secret.
+
+#### 1c. Create the EAS project
+```bash
+npx eas login      # a free Expo account is enough
+npx eas init       # writes extra.eas.projectId into app.json
+```
+`extra.eas.projectId` is what `src/notifications/push.ts` reads to mint the
+token — without it the client logs `[push] no EAS projectId yet` and skips
+registration (by design, never crashes).
+
+#### 1d. Give Expo your FCM credentials
+Expo delivers to Android through FCM **V1**, which needs a Google service
+account key:
+1. Firebase Console → ⚙ **Project settings** → **Service accounts** →
+   **Generate new private key** → downloads a `.json`.
+   **Treat this like a password** — it can send push as you. Never commit it.
+2. ```bash
+   npx eas credentials
+   ```
+   → **Android** → your profile → **Push Notifications: Manage your FCM V1
+   service account key** → **Upload a new service account key** → point it at
+   that `.json`.
+3. Verify it lists a configured FCM V1 key afterwards.
+
+You can delete the downloaded key file once uploaded; Expo stores it.
 
 ### 2. Database
 Paste `supabase/stage7-push-tokens.sql` into the Studio SQL editor and run it.
