@@ -4,6 +4,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { useAuthStore } from '../../store/authStore';
 import { useWalletStore } from '../../store/walletStore';
 import { appealGenderCheck } from '../../api/auth';
+import { useUnreadCount } from '../../api/hooks';
 import { Avatar } from '../../components/atoms/Avatar';
 import { VerifiedBadge, Tag } from '../../components/atoms/Badges';
 import { ProgressBar } from '../../components/atoms/Progress';
@@ -30,6 +31,9 @@ export function MyProfile({ navigation }: any) {
   const signOut = useAuthStore((s) => s.signOut);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const balance = useWalletStore((s) => s.balance);
+  // Unread notifications (stage20) — the 🔔 carries the count.
+  const { data: unreadCount } = useUnreadCount();
+  const unread = unreadCount ?? 0;
 
   // Appeal a wrong-model flag: the photo is right, so send it to a person.
   const appeal = () =>
@@ -68,7 +72,20 @@ export function MyProfile({ navigation }: any) {
             <Text style={{ color: t.colors.textMuted, fontSize: t.typography.size.body2 }}>{user?.city ?? 'Mumbai'}{user?.lead ? ` · ${user.lead === 'women' ? 'Woman' : 'Man'}` : ''} · {verified ? 'Aadhaar verified' : 'Not verified yet'}</Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 8 }}>
-            <Pressable onPress={() => navigation.navigate('Activity')} accessibilityRole="button" accessibilityLabel="Activity"><Text style={{ fontSize: 20 }}>🔔</Text></Pressable>
+            <Pressable
+              onPress={() => navigation.navigate('Activity')}
+              accessibilityRole="button"
+              accessibilityLabel={unread > 0 ? `Activity, ${unread} unread` : 'Activity'}
+            >
+              <View>
+                <Text style={{ fontSize: 20 }}>🔔</Text>
+                {unread > 0 && (
+                  <View style={[styles.badge, { backgroundColor: t.colors.danger, borderColor: t.colors.bg, borderRadius: t.radius.full }]}>
+                    <Text style={{ color: t.colors.text, fontSize: t.typography.size['2xs'], fontWeight: '700' }}>{unread > 9 ? '9+' : unread}</Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
             <Pressable onPress={() => navigation.navigate('EditProfile')}><Text style={{ color: t.colors.accent, fontSize: t.typography.size.md }}>Edit</Text></Pressable>
           </View>
         </View>
@@ -164,4 +181,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', padding: 14, borderWidth: 1 },
   card: { padding: 14, borderWidth: 1 },
   hist: { flexDirection: 'row', alignItems: 'center', padding: 14, borderWidth: 1, marginBottom: 10 },
+  badge: { position: 'absolute', top: -4, right: -8, minWidth: 16, height: 16, paddingHorizontal: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
 });

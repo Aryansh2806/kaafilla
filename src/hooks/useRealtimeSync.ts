@@ -13,6 +13,9 @@ const WATCH: { table: string; keys: string[] }[] = [
   { table: 'profiles', keys: ['people'] },
   { table: 'connects', keys: ['incoming', 'sent', 'accepted', 'connect'] },
   { table: 'plan_joins', keys: ['hostRequests', 'joinStatus'] },
+  // Operator portal writes these (seat calls, cancellations, refunds) — Activity
+  // and the 🔔 unread badge update the moment one lands.
+  { table: 'notifications', keys: ['notifications', 'unreadCount'] },
 ];
 
 export function useRealtimeSync(): void {

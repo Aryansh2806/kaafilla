@@ -121,3 +121,26 @@ export interface Profile {
 }
 
 export type GenderCheck = 'unchecked' | 'match' | 'needs_review' | 'appealed';
+
+// ── Notifications (stage20) ──
+// Durable in-app record written server-side by the operator portal (seat calls,
+// departure cancel/reschedule, batch finalize, refunds, new trips). The app only
+// reads its own rows and marks them read — it never writes one.
+export type NotificationKind =
+  | 'seat_called'
+  | 'departure_cancelled'
+  | 'departure_rescheduled'
+  | 'batch_finalized'
+  | 'refund_processed'
+  | 'trip_published';
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  data?: Record<string, unknown> | null;
+  tripId?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+}

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as catalog from './catalog';
 import * as economy from './economy';
 import * as plans from './plans';
+import * as notifications from './notifications';
 import { hasBackend } from './client';
 
 // react-query hooks over the catalog API. Screens use these, never the raw fns.
@@ -47,3 +48,11 @@ export const useMyJoinStatus = (planId: string) =>
   useQuery({ queryKey: ['joinStatus', planId], queryFn: () => plans.getMyJoinStatus(planId), enabled: hasBackend && !!planId, retry: false });
 export const useHostRequests = () =>
   useQuery({ queryKey: ['hostRequests'], queryFn: plans.getHostRequests, enabled: hasBackend, retry: false });
+
+// ── notifications (stage20) ──
+// Backend-only: with no backend Activity is legitimately empty, so these stay
+// disabled rather than falling back to seed. Realtime keeps both keys fresh.
+export const useNotifications = () =>
+  useQuery({ queryKey: ['notifications'], queryFn: notifications.getNotifications, enabled: hasBackend, retry: false });
+export const useUnreadCount = () =>
+  useQuery({ queryKey: ['unreadCount'], queryFn: notifications.unreadNotificationCount, enabled: hasBackend, retry: false });

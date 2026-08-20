@@ -4,10 +4,13 @@
     {
       "name": "start",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "start"
-      ],
+      "runtimeArgs": ["run", "start"],
+      "port": 3000
+    },
+    {
+      "name": "operator-portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/Dell/Downloads/kaafilla-operator", "run", "dev"],
       "port": 3000
     }
   ]
